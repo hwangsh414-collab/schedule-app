@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>플로우 — 일정 관리</title>
+<title>개인 업무 일정 관리</title>
 <!-- PWA 홈화면 추가 지원 -->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -19,22 +19,18 @@
     query, where, orderBy, onSnapshot, serverTimestamp, Timestamp
   } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-  // Your web app's Firebase configuration
+  // ====================================================
+  // 🔥 여기에 본인의 Firebase 설정을 붙여넣으세요!
+  // Firebase Console > 프로젝트 설정 > 웹 앱 추가 후 복사
+  // ====================================================
   const firebaseConfig = {
-    apiKey: "AIzaSyD5jnwUC7uZk-2r-kVdqrXoorxDEWf3Sew",
+    apiKey: "AIzaSy05jmwUC7uZk-2r-kVdqrXoorXDEWf3Sew",
     authDomain: "my-schedule-app-17d95.firebaseapp.com",
     projectId: "my-schedule-app-17d95",
     storageBucket: "my-schedule-app-17d95.firebasestorage.app",
     messagingSenderId: "335071986474",
     appId: "1:335071986474:web:b4b8c5178695826b685453"
   };
-
-  // Initialize Firebase
-  const app = initializeApp(firebaseConfig);
-</script>
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
 
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
@@ -1373,4 +1369,3 @@ if ('Notification' in window) {
 </script>
 </body>
 </html>
- 
