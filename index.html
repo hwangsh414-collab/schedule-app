@@ -19,20 +19,25 @@
     query, where, orderBy, onSnapshot, serverTimestamp, Timestamp
   } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-  // // Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
+<script type="module">
+  // Import the functions you need from the SDKs you need
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
+  // TODO: Add SDKs for Firebase products that you want to use
+  // https://firebase.google.com/docs/web/setup#available-libraries
 
-// Your web app's Firebase configuration
-const firebaseConfig = {
-  apiKey: "AIzaSyD5jnwUC7uZk-2r-kVdqrXoorxDEWf3Sew",
-  authDomain: "my-schedule-app-17d95.firebaseapp.com",
-  projectId: "my-schedule-app-17d95",
-  storageBucket: "my-schedule-app-17d95.firebasestorage.app",
-  messagingSenderId: "335071986474",
-  appId: "1:335071986474:web:b4b8c5178695826b685453"
-};
+  // Your web app's Firebase configuration
+  const firebaseConfig = {
+    apiKey: "AIzaSyD5jnwUC7uZk-2r-kVdqrXoorxDEWf3Sew",
+    authDomain: "my-schedule-app-17d95.firebaseapp.com",
+    projectId: "my-schedule-app-17d95",
+    storageBucket: "my-schedule-app-17d95.firebasestorage.app",
+    messagingSenderId: "335071986474",
+    appId: "1:335071986474:web:b4b8c5178695826b685453"
+  };
+
+  // Initialize Firebase
+  const app = initializeApp(firebaseConfig);
+</script>
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
