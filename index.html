@@ -1011,7 +1011,10 @@ function renderCal(){
         const ddLabel=dd?`<span class="dday ${dd.cls}" style="font-size:9px;padding:0 3px;border-radius:6px">${dd.label}</span>`:'';
         return`<div class="cev ${e.type}${e.alarms&&e.alarms.length?' has-alarm':''}${e.done?' done':''}" onclick="event.stopPropagation();openEventDetail('${e.id||e._lid}')">${e.title}${ddLabel}</div>`;
       }),
-      ...rtasks.map(t=>`<div class="cev recurring" onclick="event.stopPropagation();openTaskDetail('${t.id||t._lid}')">${t.time?'⏰':''} ${t.title}</div>`)
+      ...rtasks.map(t=>{
+        const isDone = t.completedDates && t.completedDates.includes(ds);
+        return `<div class="cev recurring${isDone?' done':''}" onclick="event.stopPropagation();openTaskDetail('${t.id||t._lid}')">${t.time?'⏰':''} ${t.title}</div>`;
+      })
     ];
     const visible=allItems.slice(0,3);
     const more=allItems.length>3?`<div class="cev more">+${allItems.length-3}</div>`:'';
@@ -1050,7 +1053,8 @@ function renderWeekView(){
       html+=`<div class="cev ${e.type}${e.done?' done':''}" style="font-size:10px" onclick="openEventDetail('${e.id||e._lid}')">${e.title}${ddTxt}</div>`;
     });
     rtasks.forEach(t=>{
-      html+=`<div class="cev recurring" onclick="openTaskDetail('${t.id||t._lid}')">${t.title}</div>`;
+      const isDone = t.completedDates && t.completedDates.includes(ds);
+      html+=`<div class="cev recurring${isDone?' done':''}" onclick="openTaskDetail('${t.id||t._lid}')">${t.title}</div>`;
     });
     html+=`</div>`;
   });
@@ -1083,7 +1087,8 @@ function renderWeekView(){
       });
       tEvts.forEach(t=>{
         const min=parseInt(t.time.split(':')[1]);
-        html+=`<div class="wv-evt" style="top:${min/60*100}%;background:#F5F3FF;color:var(--purple);border-left:2px solid var(--purple)" onclick="openTaskDetail('${t.id||t._lid}')">🔁 ${t.title}</div>`;
+        const isDone = t.completedDates && t.completedDates.includes(ds);
+        html+=`<div class="wv-evt${isDone?' done':''}" style="top:${min/60*100}%;background:#F5F3FF;color:var(--purple);border-left:2px solid var(--purple)" onclick="openTaskDetail('${t.id||t._lid}')">🔁 ${t.title}</div>`;
       });
       html+=`</div>`;
     });
@@ -1124,9 +1129,14 @@ function renderDayEvts(){
   });
   rtasks.forEach(t=>{
     const tid=t.id||t._lid;
-    html+=`<div class="evt-item recurring-task" onclick="openTaskDetail('${tid}')">
-      <div style="font-size:13px;font-weight:500;color:var(--purple)">🔁 ${t.title}</div>
-      <div style="font-size:11px;color:var(--muted);margin-top:4px">${t.time?'⏰ '+t.time+' · ':''}반복 업무${t.assignee?' · 👤 '+t.assignee:''}</div></div>`;
+    const isDone = t.completedDates && t.completedDates.includes(ds);
+    html+=`<div class="evt-item recurring-task" style="display:flex; align-items:flex-start; gap:10px; cursor:pointer;" onclick="openTaskDetail('${tid}')">
+      <div class="t-check${isDone?' done':''}" style="margin-top:2px;" onclick="event.stopPropagation(); toggleTaskDone('${tid}', '${ds}')"></div>
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:500;color:var(--purple);${isDone?'text-decoration:line-through;opacity:0.5;':''}">🔁 ${t.title}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">${t.time?'⏰ '+t.time+' · ':''}반복 업무${t.assignee?' · 👤 '+t.assignee:''}</div>
+      </div>
+    </div>`;
   });
 
   el.innerHTML = html || '<div class="empty"><div class="ei">📅</div><p>이 날의 일정이 없습니다</p></div>';
@@ -1141,6 +1151,24 @@ async function toggleEventDone(eid) {
   if (fbReady) {
     const { doc, updateDoc } = window._fb;
     await updateDoc(doc(window._db, 'events', eid), { done: e.done });
+  } else {
+    saveLocal(); renderCal(); renderWeekView(); renderDayEvts();
+  }
+}
+
+// 신규 추가: 반복 업무를 특정 날짜에 완료 처리하는 함수
+async function toggleTaskDone(tid, dateStr) {
+  const t = localTasks.find(x => (x.id || x._lid) === tid);
+  if (!t) return;
+  
+  if (!t.completedDates) t.completedDates = [];
+  const idx = t.completedDates.indexOf(dateStr);
+  if (idx > -1) t.completedDates.splice(idx, 1);
+  else t.completedDates.push(dateStr);
+  
+  if (fbReady) {
+    const { doc, updateDoc } = window._fb;
+    await updateDoc(doc(window._db, 'tasks', tid), { completedDates: t.completedDates });
   } else {
     saveLocal(); renderCal(); renderWeekView(); renderDayEvts();
   }
