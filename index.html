@@ -1047,7 +1047,7 @@ function renderWeekView(){
   days.forEach(d=>{
     const ds=fmtDate(d);
     const noTimeEvts=localEvents.filter(e=>e.date===ds&&!e.time);
-    const rtasks=getRecurringTasksForDate(ds);
+    const rtasks=getRecurringTasksForDate(ds).filter(t=>!t.time);
     html+=`<div class="wv-al-cell">`;
     noTimeEvts.forEach(e=>{
       const dd=e.type==='deadline'?getDday(ds):null;
