@@ -717,6 +717,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
         <div id="tdRepeatInfo" style="margin-bottom:16px"></div>
         <div id="tdDesc" style="font-size:14px;line-height:1.8;color:var(--text)"></div>
         <div style="margin-top:20px;display:flex;gap:8px;justify-content:flex-end">
+          <button class="btn btn-s btn-sm" id="tdDoneBtn" onclick="toggleTaskDoneFromDetail()" style="margin-right:auto">✓ 이 날짜 완료 처리</button>
           <button class="btn btn-d btn-sm" onclick="deleteTaskFromDetail()">🗑 삭제</button>
         </div>
       </div>
@@ -809,6 +810,7 @@ function addPrefix(inputId, prefix) {
 let curDate=new Date(), selDate=new Date();
 let calView='month'; // 'month' | 'week'
 let curProjId=null, curNoteId=null, curTaskId=null;
+let curTaskDate=null; // 모달을 열 때 선택한 날짜를 추적
 let curStEditIdx = -1; // 서브태스크 수정 인덱스
 let noteFilter='all';
 let localEvents  = JSON.parse(localStorage.getItem('fe')||'[]');
@@ -1013,7 +1015,7 @@ function renderCal(){
       }),
       ...rtasks.map(t=>{
         const isDone = t.completedDates && t.completedDates.includes(ds);
-        return `<div class="cev recurring${isDone?' done':''}" onclick="event.stopPropagation();openTaskDetail('${t.id||t._lid}')">${t.time?'⏰':''} ${t.title}</div>`;
+        return `<div class="cev recurring${isDone?' done':''}" onclick="event.stopPropagation();openTaskDetail('${t.id||t._lid}', '${ds}')">${t.time?'⏰':''} ${t.title}</div>`;
       })
     ];
     const visible=allItems.slice(0,3);
@@ -1054,7 +1056,7 @@ function renderWeekView(){
     });
     rtasks.forEach(t=>{
       const isDone = t.completedDates && t.completedDates.includes(ds);
-      html+=`<div class="cev recurring${isDone?' done':''}" onclick="openTaskDetail('${t.id||t._lid}')">${t.title}</div>`;
+      html+=`<div class="cev recurring${isDone?' done':''}" onclick="openTaskDetail('${t.id||t._lid}', '${ds}')">${t.title}</div>`;
     });
     html+=`</div>`;
   });
@@ -1088,7 +1090,7 @@ function renderWeekView(){
       tEvts.forEach(t=>{
         const min=parseInt(t.time.split(':')[1]);
         const isDone = t.completedDates && t.completedDates.includes(ds);
-        html+=`<div class="wv-evt${isDone?' done':''}" style="top:${min/60*100}%;background:#F5F3FF;color:var(--purple);border-left:2px solid var(--purple)" onclick="openTaskDetail('${t.id||t._lid}')">🔁 ${t.title}</div>`;
+        html+=`<div class="wv-evt${isDone?' done':''}" style="top:${min/60*100}%;background:#F5F3FF;color:var(--purple);border-left:2px solid var(--purple)" onclick="openTaskDetail('${t.id||t._lid}', '${ds}')">🔁 ${t.title}</div>`;
       });
       html+=`</div>`;
     });
@@ -1130,7 +1132,7 @@ function renderDayEvts(){
   rtasks.forEach(t=>{
     const tid=t.id||t._lid;
     const isDone = t.completedDates && t.completedDates.includes(ds);
-    html+=`<div class="evt-item recurring-task" style="display:flex; align-items:flex-start; gap:10px; cursor:pointer;" onclick="openTaskDetail('${tid}')">
+    html+=`<div class="evt-item recurring-task" style="display:flex; align-items:flex-start; gap:10px; cursor:pointer;" onclick="openTaskDetail('${tid}', '${ds}')">
       <div class="t-check${isDone?' done':''}" style="margin-top:2px;" onclick="event.stopPropagation(); toggleTaskDone('${tid}', '${ds}')"></div>
       <div style="flex:1">
         <div style="font-size:13px;font-weight:500;color:var(--purple);${isDone?'text-decoration:line-through;opacity:0.5;':''}">🔁 ${t.title}</div>
@@ -1172,6 +1174,13 @@ async function toggleTaskDone(tid, dateStr) {
   } else {
     saveLocal(); renderCal(); renderWeekView(); renderDayEvts();
   }
+}
+
+// 모달 내부에서 현재 보고 있는 날짜 기준으로 완료를 토글하는 래퍼 함수
+async function toggleTaskDoneFromDetail() {
+  if (!curTaskId || !curTaskDate) return;
+  await toggleTaskDone(curTaskId, curTaskDate);
+  openTaskDetail(curTaskId, curTaskDate); // 변경 후 모달 즉시 새로고침
 }
 
 function openEventDetail(eid){
@@ -1564,15 +1573,22 @@ const typeIconMap={'recurring-daily':'🔁','recurring-weekly':'📆','recurring
 const typeLabelMap={'recurring-daily':'매일 반복','recurring-weekly':'매주 반복','recurring-monthly':'매월 반복','adhoc':'수시 업무'};
 const priorityTagMap={high:'<span class="tag tag-r">높음 🔴</span>',medium:'<span class="tag tag-a">보통</span>',low:'<span class="tag tag-g">낮음 🟢</span>'};
 
-function openTaskDetail(tid){
+function openTaskDetail(tid, dateStr){
   curTaskId=tid;
+  curTaskDate=dateStr || fmtDate(selDate); // 달력에서 클릭한 날짜 유지 (없으면 선택된 날짜)
   const t=localTasks.find(x=>(x.id||x._lid)===tid); if(!t)return;
-  $('tdTitle').textContent=t.title; $('tdPriorityBadge').innerHTML=priorityTagMap[t.priority]||'';
+  
+  const isDone = t.completedDates && t.completedDates.includes(curTaskDate);
+  $('tdTitle').innerHTML=(isDone?'<span style="color:var(--green);margin-right:6px">✓</span>':'')+t.title;
+  $('tdPriorityBadge').innerHTML=priorityTagMap[t.priority]||'';
+  
   let meta=`${typeIconMap[t.type]||'⚡'} ${typeLabelMap[t.type]||''}`;
   if(t.time) meta+=` · ⏰ ${t.time}`;
   if(t.targetDate) meta+=` · 📅 목표일: ${t.targetDate}`;
   if(t.assignee) meta+=` · 👤 ${t.assignee}`;
+  meta+= ` · 📌 기준일: ${curTaskDate}`;
   $('tdMeta').textContent=meta;
+  
   let repeatHtml='';
   if(t.type==='recurring-weekly'&&t.repeatDays&&t.repeatDays.length)
     repeatHtml=`<div style="background:var(--accent-l);border-radius:var(--rs);padding:12px 14px"><div style="font-size:11px;font-weight:700;color:var(--accent);margin-bottom:8px">반복 요일</div><div class="rec-repeat">${t.repeatDays.map(d=>`<span class="rep-chip">${DAY_KR[d]}요일</span>`).join('')}</div></div>`;
@@ -1581,6 +1597,21 @@ function openTaskDetail(tid){
   else if(t.type==='recurring-daily')
     repeatHtml=`<div style="background:var(--accent-l);border-radius:var(--rs);padding:12px 14px;font-size:13px;color:var(--accent);font-weight:500">🔁 매일 반복되는 업무입니다</div>`;
   $('tdRepeatInfo').innerHTML=repeatHtml; $('tdDesc').textContent=t.desc||'(설명 없음)';
+  
+  // 하단 완료 버튼 UI 업데이트
+  const doneBtn = $('tdDoneBtn');
+  if(doneBtn) {
+    if(isDone) {
+      doneBtn.textContent = '✓ 완료 취소 (미완료)';
+      doneBtn.classList.remove('btn-s');
+      doneBtn.classList.add('btn-p');
+    } else {
+      doneBtn.textContent = '✓ 이 날짜 완료 처리';
+      doneBtn.classList.remove('btn-p');
+      doneBtn.classList.add('btn-s');
+    }
+  }
+
   switchTaskTab('info'); renderLinkedTaskNotes(); openModal('moTaskDetail');
 }
 function switchTaskTab(tab){
