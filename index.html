@@ -11,12 +11,12 @@
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getFirestore, collection, addDoc, doc, updateDoc, deleteDoc, query, orderBy, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { getFirestore, collection, addDoc, doc, updateDoc, deleteDoc, query, orderBy, onSnapshot, serverTimestamp, getDocs, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
   // 인증(Auth) 모듈 추가
   import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
   
   const firebaseConfig = {
-    apiKey: "AIzaSy05jmwUC7uZk-2r-kVdqrXoorXDEWf3Sew",
+    apiKey: "AIzaSyD5jnwUC7uZk-2r-kVdqrXoorxDEWf3Sew",
     authDomain: "my-schedule-app-17d95.firebaseapp.com",
     projectId: "my-schedule-app-17d95",
     storageBucket: "my-schedule-app-17d95.firebasestorage.app",
@@ -30,7 +30,7 @@
   
   window._db = db;
   window._auth = auth;
-  window._fb = { collection, addDoc, doc, updateDoc, deleteDoc, query, orderBy, onSnapshot, serverTimestamp };
+  window._fb = { collection, addDoc, doc, updateDoc, deleteDoc, query, orderBy, onSnapshot, serverTimestamp, getDocs, setDoc };
   window._fbAuth = { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut };
   
   document.dispatchEvent(new Event('firebaseReady'));
@@ -377,6 +377,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
   <!-- 계정 정보 및 로그아웃 위치 -->
   <div style="margin-top:auto;padding:16px;border-top:1px solid var(--border)">
     <div id="userInfoDisplay" style="font-size:12px; font-weight:700; color:var(--accent); margin-bottom:10px; text-align:center; word-break:break-all;"></div>
+    <button class="btn btn-p btn-sm" id="migrateBtn" style="width:100%; justify-content:center; margin-bottom:6px; display:none;" onclick="migrateOldData()">⬇️ 이전 공용데이터 가져오기</button>
     <button class="btn btn-s btn-sm" style="width:100%; justify-content:center; margin-bottom:12px;" onclick="handleLogout()">로그아웃</button>
     <div id="alarmSidebarStatus" style="font-size:11px;color:var(--muted);text-align:center"></div>
   </div>
@@ -954,6 +955,36 @@ function handleLogout() {
   window._fbAuth.signOut(window._auth);
 }
 
+// ── 신규 추가: B형태 (이전 데이터 개인 계정으로 가져오기) ──
+async function migrateOldData() {
+  if(!currentUser || !fbReady) return;
+  if(!confirm('가입 전 함께 사용하던 이전 일정을 내 계정으로 모두 복사해올까요?\n(중복 생성 방지를 위해 처음 1회만 누르시는 것을 권장합니다.)')) return;
+
+  try {
+    showToast('데이터를 가져오는 중입니다. 창을 닫지 마세요...');
+    const { collection, getDocs, setDoc, doc } = window._fb;
+    const collectionsToMigrate = ['events', 'projects', 'tasks', 'notes'];
+    let totalCount = 0;
+
+    for (const colName of collectionsToMigrate) {
+      // 1. 기존 공용 경로에서 데이터 모두 읽기
+      const oldSnapshot = await getDocs(collection(window._db, colName));
+      for (const oldDoc of oldSnapshot.docs) {
+        const data = oldDoc.data();
+        // 2. 내 개인 경로로 쓰기 (ID를 그대로 유지)
+        await setDoc(doc(window._db, `users/${currentUser.uid}/${colName}`, oldDoc.id), data);
+        totalCount++;
+      }
+    }
+    showToast(`총 ${totalCount}개의 이전 데이터를 성공적으로 복사했습니다! ✓`);
+    // 가져오기 완료 후 버튼 숨기기
+    $('migrateBtn').style.display = 'none';
+  } catch(err) {
+    console.error(err);
+    showToast('데이터 가져오기 실패: ' + err.message);
+  }
+}
+
 // ── Firebase Init ─────────────────────────────────────────────
 document.addEventListener('firebaseReady',()=>{
   fbReady=true; $('setupNotice').style.display='none';
@@ -964,12 +995,14 @@ document.addEventListener('firebaseReady',()=>{
       currentUser = user;
       $('authOverlay').style.display = 'none';
       $('userInfoDisplay').textContent = user.email;
+      if($('migrateBtn')) $('migrateBtn').style.display = 'flex'; // 로그인시 버튼 표시
       loadLocal();
       initDataListeners();
     } else {
       currentUser = null;
       $('authOverlay').style.display = 'flex';
       $('userInfoDisplay').textContent = '';
+      if($('migrateBtn')) $('migrateBtn').style.display = 'none'; // 로그아웃시 버튼 숨김
       clearDataListeners();
       
       // 로그아웃 시 로컬 데이터 초기화 및 화면 리렌더링
