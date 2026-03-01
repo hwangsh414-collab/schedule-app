@@ -12,6 +12,9 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getFirestore, collection, addDoc, doc, updateDoc, deleteDoc, query, orderBy, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  // 인증(Auth) 모듈 추가
+  import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  
   const firebaseConfig = {
     apiKey: "AIzaSy05jmwUC7uZk-2r-kVdqrXoorXDEWf3Sew",
     authDomain: "my-schedule-app-17d95.firebaseapp.com",
@@ -20,10 +23,16 @@
     messagingSenderId: "335071986474",
     appId: "1:335071986474:web:b4b8c5178695826b685453"
   };
+  
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
+  const auth = getAuth(app);
+  
   window._db = db;
+  window._auth = auth;
   window._fb = { collection, addDoc, doc, updateDoc, deleteDoc, query, orderBy, onSnapshot, serverTimestamp };
+  window._fbAuth = { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut };
+  
   document.dispatchEvent(new Event('firebaseReady'));
 </script>
 
@@ -42,6 +51,12 @@
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px}
+
+/* ── Auth Overlay ── */
+.auth-overlay { position:fixed; inset:0; background:var(--bg); z-index:99999; display:flex; align-items:center; justify-content:center; padding: 20px; }
+.auth-box { background:var(--surface); padding:40px; border-radius:var(--r); box-shadow:0 20px 40px rgba(0,0,0,.1); width:100%; max-width:360px; text-align:center; }
+.auth-title { font-family:'Gowun Dodum', sans-serif; font-size:28px; color:var(--accent); margin-bottom:8px; font-weight:bold; }
+.auth-sub { font-size:13px; color:var(--muted); margin-bottom:24px; }
 
 /* ── Layout ── */
 .shell{display:flex;min-height:100vh}
@@ -322,6 +337,22 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
 </style>
 </head>
 <body>
+
+<!-- ── Auth Login Overlay ── -->
+<div id="authOverlay" class="auth-overlay">
+  <div class="auth-box">
+    <div class="auth-title">플로우</div>
+    <div class="auth-sub">로그인하여 나만의 일정을 관리하세요</div>
+    <div class="fg" style="text-align:left;"><label class="fl">이메일</label><input class="fi" type="email" id="authEmail" placeholder="name@example.com"></div>
+    <div class="fg" style="text-align:left;"><label class="fl">비밀번호</label><input class="fi" type="password" id="authPwd" placeholder="••••••••" onkeyup="if(event.key==='Enter') handleLogin()"></div>
+    <div id="authError" style="color:var(--red); font-size:12px; margin-bottom:16px; min-height:14px; word-break: keep-all;"></div>
+    <div style="display:flex; gap:10px;">
+      <button class="btn btn-s" style="flex:1; justify-content:center;" onclick="handleSignUp()">회원가입</button>
+      <button class="btn btn-p" style="flex:1; justify-content:center;" onclick="handleLogin()">로그인</button>
+    </div>
+  </div>
+</div>
+
 <div class="shell">
 
 <!-- ── Sidebar ── -->
@@ -342,7 +373,11 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
       <svg class="ni" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2" d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8" stroke-width="2"/><line x1="16" y1="13" x2="8" y2="13" stroke-width="2"/><line x1="16" y1="17" x2="8" y2="17" stroke-width="2"/></svg>노트
     </div>
   </div>
+  
+  <!-- 계정 정보 및 로그아웃 위치 -->
   <div style="margin-top:auto;padding:16px;border-top:1px solid var(--border)">
+    <div id="userInfoDisplay" style="font-size:12px; font-weight:700; color:var(--accent); margin-bottom:10px; text-align:center; word-break:break-all;"></div>
+    <button class="btn btn-s btn-sm" style="width:100%; justify-content:center; margin-bottom:12px;" onclick="handleLogout()">로그아웃</button>
     <div id="alarmSidebarStatus" style="font-size:11px;color:var(--muted);text-align:center"></div>
   </div>
 </aside>
@@ -492,7 +527,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
         </div>
       </div>
       
-      <!-- 신규: 일정 반복 설정 -->
+      <!-- 일정 반복 설정 -->
       <div class="fr">
         <div class="fg"><label class="fl">반복 설정</label>
           <select class="fs" id="evtRepeatType" onchange="onEvtRepeatChange(this.value)">
@@ -510,7 +545,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
         </div>
       </div>
       
-      <!-- 신규: 일정 반복 세부 요일/날짜 픽커 -->
+      <!-- 일정 반복 세부 요일/날짜 픽커 -->
       <div class="repeat-extra" id="evtWeeklyPicker">
         <div class="re-label">반복 요일 <span style="font-weight:400;text-transform:none">(복수 선택 가능)</span></div>
         <div class="day-sel">
@@ -849,44 +884,128 @@ function addPrefix(inputId, prefix) {
 }
 
 // ── State ─────────────────────────────────────────────────────
+let currentUser = null; 
+// 🔥 [공유/개인 설정] 팀 전체가 똑같은 일정을 볼지, 개인별로 따로 볼지 결정합니다.
+// false = 개인용 캘린더 (로그인한 사람 데이터만 보임) / true = 팀 공용 캘린더
+const IS_TEAM_SHARED = false; 
+
 let curDate=new Date(), selDate=new Date();
 let calView='month'; // 'month' | 'week'
 let curProjId=null, curNoteId=null, curTaskId=null, curEvtDate=null;
-let curTaskDate=null; // 모달을 열 때 선택한 날짜를 추적
-let curStEditIdx = -1; // 서브태스크 수정 인덱스
+let curTaskDate=null; 
+let curStEditIdx = -1; 
 let noteFilter='all';
-let localEvents  = JSON.parse(localStorage.getItem('fe')||'[]');
-let localProjects= JSON.parse(localStorage.getItem('fp')||'[]');
-let localTasks   = JSON.parse(localStorage.getItem('ft')||'[]');
-let localNotes   = JSON.parse(localStorage.getItem('fn')||'[]');
+
+let localEvents  = [];
+let localProjects= [];
+let localTasks   = [];
+let localNotes   = [];
+
 let fbReady=false, alarmTimer=null;
 let dismissed = JSON.parse(localStorage.getItem('fd')||'[]');
 
-function saveLocal(){
-  localStorage.setItem('fe',JSON.stringify(localEvents));
-  localStorage.setItem('fp',JSON.stringify(localProjects));
-  localStorage.setItem('ft',JSON.stringify(localTasks));
-  localStorage.setItem('fn',JSON.stringify(localNotes));
+let unsubEvents, unsubProjects, unsubTasks, unsubNotes;
+
+// ── DB 경로 헬퍼 함수 ──
+const getColl = (name) => IS_TEAM_SHARED ? window._fb.collection(window._db, name) : window._fb.collection(window._db, `users/${currentUser.uid}/${name}`);
+const getDoc = (name, id) => IS_TEAM_SHARED ? window._fb.doc(window._db, name, id) : window._fb.doc(window._db, `users/${currentUser.uid}/${name}`, id);
+
+function saveLocal() {
+  if(!currentUser) return;
+  localStorage.setItem('fe_'+currentUser.uid, JSON.stringify(localEvents));
+  localStorage.setItem('fp_'+currentUser.uid, JSON.stringify(localProjects));
+  localStorage.setItem('ft_'+currentUser.uid, JSON.stringify(localTasks));
+  localStorage.setItem('fn_'+currentUser.uid, JSON.stringify(localNotes));
 }
 
-// ── Firebase ──────────────────────────────────────────────────
+function loadLocal() {
+  if(!currentUser) return;
+  localEvents   = JSON.parse(localStorage.getItem('fe_'+currentUser.uid)||'[]');
+  localProjects = JSON.parse(localStorage.getItem('fp_'+currentUser.uid)||'[]');
+  localTasks    = JSON.parse(localStorage.getItem('ft_'+currentUser.uid)||'[]');
+  localNotes    = JSON.parse(localStorage.getItem('fn_'+currentUser.uid)||'[]');
+}
+
+// ── Auth 로그인 / 회원가입 로직 ──
+async function handleLogin() {
+  const e = $('authEmail').value, p = $('authPwd').value;
+  if(!e || !p) return $('authError').textContent = '이메일과 비밀번호를 입력하세요.';
+  try {
+    await window._fbAuth.signInWithEmailAndPassword(window._auth, e, p);
+    $('authError').textContent = '';
+  } catch(err) {
+    $('authError').textContent = '로그인 실패: ' + err.message;
+  }
+}
+
+async function handleSignUp() {
+  const e = $('authEmail').value, p = $('authPwd').value;
+  if(!e || !p) return $('authError').textContent = '이메일과 비밀번호를 입력하세요.';
+  try {
+    await window._fbAuth.createUserWithEmailAndPassword(window._auth, e, p);
+    $('authError').textContent = '';
+    showToast('회원가입이 완료되었습니다!');
+  } catch(err) {
+    $('authError').textContent = '가입 실패: ' + err.message;
+  }
+}
+
+function handleLogout() {
+  window._fbAuth.signOut(window._auth);
+}
+
+// ── Firebase Init ─────────────────────────────────────────────
 document.addEventListener('firebaseReady',()=>{
   fbReady=true; $('setupNotice').style.display='none';
-  const db=window._db,{collection,onSnapshot,orderBy,query}=window._fb;
-  onSnapshot(query(collection(db,'events'),orderBy('date')),s=>{
-    localEvents=s.docs.map(d=>({id:d.id,...d.data()}));saveLocal();renderCal();renderWeekView();renderDayEvts();updateAlarmPanel();
-  });
-  onSnapshot(query(collection(db,'projects'),orderBy('createdAt')),s=>{
-    localProjects=s.docs.map(d=>({id:d.id,...d.data()}));renderProjects();updateEvtProjSel();
-  });
-  onSnapshot(query(collection(db,'tasks'),orderBy('createdAt')),s=>{
-    localTasks=s.docs.map(d=>({id:d.id,...d.data()}));renderTasks();renderCal();renderWeekView();renderDayEvts();
-  });
-  onSnapshot(query(collection(db,'notes'),orderBy('createdAt')),s=>{
-    localNotes=s.docs.map(d=>({id:d.id,...d.data()}));saveLocal();renderNotesPage();
+  
+  // 로그인 상태 감지 리스너
+  window._fbAuth.onAuthStateChanged(window._auth, user => {
+    if(user) {
+      currentUser = user;
+      $('authOverlay').style.display = 'none';
+      $('userInfoDisplay').textContent = user.email;
+      loadLocal();
+      initDataListeners();
+    } else {
+      currentUser = null;
+      $('authOverlay').style.display = 'flex';
+      $('userInfoDisplay').textContent = '';
+      clearDataListeners();
+      
+      // 로그아웃 시 로컬 데이터 초기화 및 화면 리렌더링
+      localEvents=[]; localProjects=[]; localTasks=[]; localNotes=[];
+      renderCal(); renderWeekView(); renderDayEvts(); renderProjects(); renderTasks(); renderNotesPage();
+    }
   });
 });
 setTimeout(()=>{ if(!fbReady) $('setupNotice').style.display='flex'; },2000);
+
+// 데이터 구독 시작
+function initDataListeners() {
+  if(!currentUser) return;
+  const { onSnapshot, orderBy, query } = window._fb;
+  
+  unsubEvents = onSnapshot(query(getColl('events'), orderBy('date')), s => {
+    localEvents = s.docs.map(d=>({id:d.id, ...d.data()})); saveLocal(); renderCal(); renderWeekView(); renderDayEvts(); updateAlarmPanel();
+  });
+  unsubProjects = onSnapshot(query(getColl('projects'), orderBy('createdAt')), s => {
+    localProjects = s.docs.map(d=>({id:d.id, ...d.data()})); saveLocal(); renderProjects(); updateEvtProjSel();
+  });
+  unsubTasks = onSnapshot(query(getColl('tasks'), orderBy('createdAt')), s => {
+    localTasks = s.docs.map(d=>({id:d.id, ...d.data()})); saveLocal(); renderTasks(); renderCal(); renderWeekView(); renderDayEvts();
+  });
+  unsubNotes = onSnapshot(query(getColl('notes'), orderBy('createdAt')), s => {
+    localNotes = s.docs.map(d=>({id:d.id, ...d.data()})); saveLocal(); renderNotesPage();
+  });
+}
+
+// 데이터 구독 취소
+function clearDataListeners() {
+  if(unsubEvents) unsubEvents();
+  if(unsubProjects) unsubProjects();
+  if(unsubTasks) unsubTasks();
+  if(unsubNotes) unsubNotes();
+}
 
 // ── Navigation ────────────────────────────────────────────────
 const pageMeta={
@@ -1298,10 +1417,10 @@ async function toggleEventDone(eid, dateStr) {
     if (idx > -1) e.completedDates.splice(idx, 1);
     else e.completedDates.push(dateStr);
     
-    if (fbReady) await window._fb.updateDoc(window._fb.doc(window._db, 'events', eid), { completedDates: e.completedDates });
+    if (fbReady) await window._fb.updateDoc(getDoc('events', eid), { completedDates: e.completedDates });
   } else {
     e.done = !e.done;
-    if (fbReady) await window._fb.updateDoc(window._fb.doc(window._db, 'events', eid), { done: e.done });
+    if (fbReady) await window._fb.updateDoc(getDoc('events', eid), { done: e.done });
   }
   
   if (!fbReady) saveLocal(); 
@@ -1396,15 +1515,16 @@ async function saveEvent(){
     repeatDays: repeatType === 'weekly' ? getSelEvtDays() : [],
     repeatDates: repeatType === 'monthly' ? getSelEvtDates() : [],
     done: repeatType === 'none' ? isDone : false,
-    completedDates: repeatType !== 'none' ? completedDates : []
+    completedDates: repeatType !== 'none' ? completedDates : [],
+    author: currentUser ? currentUser.email : ''
   };
   
   if(editId){
-    if(fbReady){const{doc,updateDoc}=window._fb;await updateDoc(doc(window._db,'events',editId),evt)}
+    if(fbReady){await window._fb.updateDoc(getDoc('events', editId),evt)}
     else{const idx=localEvents.findIndex(e=>(e.id||e._lid)===editId);if(idx>=0)localEvents[idx]={...localEvents[idx],...evt};saveLocal();renderCal();renderWeekView();renderDayEvts()}
     showToast('일정이 수정되었습니다 ✓');
   } else {
-    if(fbReady){const{collection,addDoc,serverTimestamp}=window._fb;await addDoc(collection(window._db,'events'),{...evt,createdAt:serverTimestamp()})}
+    if(fbReady){await window._fb.addDoc(getColl('events'),{...evt,createdAt:window._fb.serverTimestamp()})}
     else{evt._lid='e_'+Date.now();localEvents.push(evt);saveLocal();renderCal();renderWeekView();renderDayEvts()}
     if(alarms.length&&Notification.permission==='default')requestNotifPermission();
     showToast('일정이 저장되었습니다 ✓');
@@ -1415,7 +1535,7 @@ async function saveEvent(){
 async function deleteEventFromModal(){
   const eid=$('evtEditId').value; if(!eid)return;
   if(!confirm('이 일정을 삭제할까요?'))return;
-  if(fbReady){const{doc,deleteDoc}=window._fb;await deleteDoc(doc(window._db,'events',eid))}
+  if(fbReady){await window._fb.deleteDoc(getDoc('events', eid))}
   else{localEvents=localEvents.filter(e=>(e.id||e._lid)!==eid);saveLocal();renderCal();renderWeekView();renderDayEvts()}
   closeModal('moAddEvent'); showToast('일정이 삭제되었습니다');
 }
@@ -1475,14 +1595,14 @@ function openEditProjectById(pid){
 }
 async function saveProject(){
   const name=$('projName').value.trim(); if(!name){showToast('프로젝트명을 입력해 주세요');return}
-  const proj={name,desc:$('projDesc').value,startDate:$('projStart').value,endDate:$('projEnd').value,status:$('projStatus').value};
+  const proj={name,desc:$('projDesc').value,startDate:$('projStart').value,endDate:$('projEnd').value,status:$('projStatus').value, author: currentUser ? currentUser.email : ''};
   const editId=$('projEditId').value;
   if(editId){
-    if(fbReady){const{doc,updateDoc}=window._fb;await updateDoc(doc(window._db,'projects',editId),proj)}
+    if(fbReady){await window._fb.updateDoc(getDoc('projects', editId),proj)}
     else{const idx=localProjects.findIndex(p=>(p.id||p._lid)===editId);if(idx>=0)localProjects[idx]={...localProjects[idx],...proj};saveLocal();renderProjects();updateEvtProjSel()}
     showToast('프로젝트가 수정되었습니다 ✓');
   } else {
-    if(fbReady){const{collection,addDoc,serverTimestamp}=window._fb;await addDoc(collection(window._db,'projects'),{...proj,createdAt:serverTimestamp()})}
+    if(fbReady){await window._fb.addDoc(getColl('projects'),{...proj,createdAt:window._fb.serverTimestamp()})}
     else{proj._lid='p_'+Date.now();localProjects.push(proj);saveLocal();renderProjects();updateEvtProjSel()}
     showToast('프로젝트가 생성되었습니다 ✓');
   }
@@ -1494,8 +1614,7 @@ async function deleteProject(){
   if(!confirm('이 프로젝트를 삭제할까요? (연결된 모든 세부 데이터가 함께 관리 대상에서 제외됩니다)'))return;
   
   if(fbReady){
-    const{doc,deleteDoc}=window._fb;
-    await deleteDoc(doc(window._db,'projects',pid));
+    await window._fb.deleteDoc(getDoc('projects', pid));
   } else {
     localProjects=localProjects.filter(p=>(p.id||p._lid)!==pid);
     saveLocal(); renderProjects(); updateEvtProjSel();
@@ -1589,10 +1708,9 @@ async function saveMeeting(){
 
   // 캘린더 자동 연동
   if($('mtSyncCal').checked){
-    const evt={title:`[회의] ${t}`,date:mtDate,startTime:mtTime,endTime:'',type:'meeting',projectId:curProjId,note:mtNotes,alarms:[], done:false, repeatType:'none'};
+    const evt={title:`[회의] ${t}`,date:mtDate,startTime:mtTime,endTime:'',type:'meeting',projectId:curProjId,note:mtNotes,alarms:[], done:false, repeatType:'none', author: currentUser ? currentUser.email : ''};
     if(fbReady){
-      const{collection,addDoc,serverTimestamp}=window._fb;
-      await addDoc(collection(window._db,'events'),{...evt,createdAt:serverTimestamp()});
+      await window._fb.addDoc(getColl('events'),{...evt,createdAt:window._fb.serverTimestamp()});
     } else {
       evt._lid='e_'+Date.now(); localEvents.push(evt); saveLocal(); renderCal(); renderWeekView(); renderDayEvts();
     }
@@ -1724,13 +1842,14 @@ async function saveTask(){
   const task={title,type,priority:$('taskPriority').value,assignee:$('taskAssignee').value,desc:$('taskDesc').value,time:$('taskTime').value,
     targetDate: type==='adhoc'?$('taskDate').value:'',
     repeatDays:type==='recurring-weekly'?getSelDays():[],
-    repeatDates:type==='recurring-monthly'?getSelDates():[]};
+    repeatDates:type==='recurring-monthly'?getSelDates():[],
+    author: currentUser ? currentUser.email : ''};
   if(editId){
-    if(fbReady){const{doc,updateDoc}=window._fb;await updateDoc(doc(window._db,'tasks',editId),task)}
+    if(fbReady){await window._fb.updateDoc(getDoc('tasks', editId),task)}
     else{const idx=localTasks.findIndex(t=>(t.id||t._lid)===editId);if(idx>=0)localTasks[idx]={...localTasks[idx],...task};saveLocal();renderTasks();renderCal();renderWeekView();renderDayEvts()}
     showToast('업무가 수정되었습니다 ✓');
   } else {
-    if(fbReady){const{collection,addDoc,serverTimestamp}=window._fb;await addDoc(collection(window._db,'tasks'),{...task,createdAt:serverTimestamp()})}
+    if(fbReady){await window._fb.addDoc(getColl('tasks'),{...task,createdAt:window._fb.serverTimestamp()})}
     else{task._lid='t_'+Date.now();localTasks.push(task);saveLocal();renderTasks();renderCal();renderWeekView();renderDayEvts()}
     showToast('업무 등록 ✓');
   }
@@ -1738,12 +1857,11 @@ async function saveTask(){
 }
 
 async function deleteTask(id){
-  if(fbReady){const{doc,deleteDoc}=window._fb;await deleteDoc(doc(window._db,'tasks',id))}
+  if(fbReady){await window._fb.deleteDoc(getDoc('tasks', id))}
   else{localTasks=localTasks.filter(t=>(t.id||t._lid)!==id);saveLocal();renderTasks();renderCal();renderWeekView();renderDayEvts()}
 }
 function getTaskName(tid){const t=localTasks.find(x=>(x.id||x._lid)===tid);return t?t.title:''}
 
-// 신규 추가: 반복 업무를 특정 날짜에 완료 처리하는 함수
 async function toggleTaskDone(tid, dateStr) {
   const t = localTasks.find(x => (x.id || x._lid) === tid);
   if (!t) return;
@@ -1754,18 +1872,16 @@ async function toggleTaskDone(tid, dateStr) {
   else t.completedDates.push(dateStr);
   
   if (fbReady) {
-    const { doc, updateDoc } = window._fb;
-    await updateDoc(doc(window._db, 'tasks', tid), { completedDates: t.completedDates });
+    await window._fb.updateDoc(getDoc('tasks', tid), { completedDates: t.completedDates });
   } else {
     saveLocal(); renderCal(); renderWeekView(); renderDayEvts();
   }
 }
 
-// 모달 내부에서 현재 보고 있는 날짜 기준으로 완료를 토글하는 래퍼 함수
 async function toggleTaskDoneFromDetail() {
   if (!curTaskId || !curTaskDate) return;
   await toggleTaskDone(curTaskId, curTaskDate);
-  openTaskDetail(curTaskId, curTaskDate); // 변경 후 모달 즉시 새로고침
+  openTaskDetail(curTaskId, curTaskDate); 
 }
 
 
@@ -1776,7 +1892,7 @@ const priorityTagMap={high:'<span class="tag tag-r">높음 🔴</span>',medium:'
 
 function openTaskDetail(tid, dateStr){
   curTaskId=tid;
-  curTaskDate=dateStr || fmtDate(selDate); // 달력에서 클릭한 날짜 유지 (없으면 선택된 날짜)
+  curTaskDate=dateStr || fmtDate(selDate);
   const t=localTasks.find(x=>(x.id||x._lid)===tid); if(!t)return;
   
   const isDone = t.completedDates && t.completedDates.includes(curTaskDate);
@@ -1799,7 +1915,6 @@ function openTaskDetail(tid, dateStr){
     repeatHtml=`<div style="background:var(--accent-l);border-radius:var(--rs);padding:12px 14px;font-size:13px;color:var(--accent);font-weight:500">🔁 매일 반복되는 업무입니다</div>`;
   $('tdRepeatInfo').innerHTML=repeatHtml; $('tdDesc').textContent=t.desc||'(설명 없음)';
   
-  // 하단 완료 버튼 UI 업데이트
   const doneBtn = $('tdDoneBtn');
   if(doneBtn) {
     if(isDone) {
@@ -1872,13 +1987,13 @@ async function saveNote(){
   const content=$('noteContent').value.trim(); if(!content){showToast('내용을 입력해 주세요');return}
   const editId=$('noteEditId').value; const linkType=$('noteLinkType').value;
   const noteData={title:$('noteTitle').value.trim()||'(제목 없음)',content,color:$('noteColor').value,linkType,
-    linkTargetId:linkType!=='none'?$('noteLinkTarget').value:'',createdAt:new Date().toLocaleDateString('ko-KR')};
+    linkTargetId:linkType!=='none'?$('noteLinkTarget').value:'',createdAt:new Date().toLocaleDateString('ko-KR'), author: currentUser ? currentUser.email : ''};
   if(editId){
-    if(fbReady){const{doc,updateDoc}=window._fb;await updateDoc(doc(window._db,'notes',editId),noteData)}
+    if(fbReady){await window._fb.updateDoc(getDoc('notes', editId),noteData)}
     else{const idx=localNotes.findIndex(n=>(n.id||n._lid)===editId);if(idx>=0)localNotes[idx]={...localNotes[idx],...noteData};saveLocal();renderNotesPage()}
     showToast('노트가 수정되었습니다 ✓');
   } else {
-    if(fbReady){const{collection,addDoc,serverTimestamp}=window._fb;await addDoc(collection(window._db,'notes'),{...noteData,createdAt:serverTimestamp()})}
+    if(fbReady){await window._fb.addDoc(getColl('notes'),{...noteData,createdAt:window._fb.serverTimestamp()})}
     else{noteData._lid='n_'+Date.now();localNotes.push(noteData);saveLocal();renderNotesPage()}
     showToast('노트가 저장되었습니다 ✓');
   }
@@ -1887,7 +2002,7 @@ async function saveNote(){
 async function deleteNote(){
   const editId=$('noteEditId').value; if(!editId)return;
   if(!confirm('이 노트를 삭제할까요?'))return;
-  if(fbReady){const{doc,deleteDoc}=window._fb;await deleteDoc(doc(window._db,'notes',editId))}
+  if(fbReady){await window._fb.deleteDoc(getDoc('notes', editId))}
   else{localNotes=localNotes.filter(n=>(n.id||n._lid)!==editId);saveLocal();renderNotesPage()}
   closeModal('moNote'); showToast('노트가 삭제되었습니다');
 }
