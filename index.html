@@ -12,11 +12,10 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getFirestore, collection, addDoc, doc, updateDoc, deleteDoc, query, orderBy, onSnapshot, serverTimestamp, getDocs, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-  // 인증(Auth) 모듈 추가
   import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
   
   const firebaseConfig = {
-    apiKey: "AIzaSyD5jnwUC7uZk-2r-kVdqrXoorxDEWf3Sew",
+    apiKey: "AIzaSy05jmwUC7uZk-2r-kVdqrXoorXDEWf3Sew",
     authDomain: "my-schedule-app-17d95.firebaseapp.com",
     projectId: "my-schedule-app-17d95",
     storageBucket: "my-schedule-app-17d95.firebasestorage.app",
@@ -162,7 +161,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
 .dday-past{background:#e5e7eb;color:#9ca3af;text-decoration:line-through}
 
 /* Side panel */
-.side-panel{background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
+.side-panel{background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden; display:flex; flex-direction:column;}
 .sp-head{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
 .sp-title{font-size:14px;font-weight:700}
 .sp-body{padding:14px 18px}
@@ -224,9 +223,9 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
 .mh{padding:20px 24px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between}
 .mb{overflow-y:auto;flex:1}
 .m-tabs{display:flex;border-bottom:1px solid var(--border);padding:0 24px;overflow-x:auto}
-.m-tab{padding:12px 16px;font-size:13px;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;font-weight:500;transition:all .15s;white-space:nowrap}
+.m-tab{padding:12px 16px;font-size:13px;cursor:pointer;color:var(--muted);border-bottom:2px transparent;margin-bottom:-1px;font-weight:500;transition:all .15s;white-space:nowrap}
 .m-tab:hover{color:var(--text)}
-.m-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.m-tab.active{color:var(--accent);border-bottom:2px solid var(--accent)}
 .m-tc{padding:20px 24px;display:none}
 .m-tc.active{display:block}
 
@@ -317,6 +316,10 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
 .toast{position:fixed;bottom:24px;right:24px;background:#1C1917;color:#fff;padding:12px 20px;border-radius:var(--rs);font-size:13px;z-index:9999;animation:slideUp .3s,fadeOut .3s 2.7s forwards;box-shadow:var(--shadow-md)}
 @keyframes fadeOut{to{opacity:0;transform:translateY(10px)}}
 .hbg{display:none;background:none;border:none;cursor:pointer;padding:4px;color:var(--text)}
+
+/* Scroll UI tweaks */
+#dayEvtList { max-height: 400px; overflow-y: auto; }
+#overdueList { max-height: 300px; overflow-y: auto; }
 
 /* ── Responsive ── */
 @media(max-width:768px){
@@ -441,7 +444,18 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
             <div class="sp-head">
               <div class="sp-title" id="selDateTitle">오늘 일정</div>
             </div>
-            <div class="sp-body"><div class="evt-list" id="dayEvtList"><div class="empty"><div class="ei">📅</div><p>이 날의 일정이 없습니다</p></div></div></div>
+            <div class="sp-body" style="padding-bottom:10px;">
+              <div class="evt-list" id="dayEvtList"></div>
+            </div>
+            
+            <!-- 신규: 기한 지난 미완료 항목 (지연 항목) 영역 -->
+            <div class="sp-head" style="border-top:1px solid var(--border); background:var(--red-l);">
+              <div class="sp-title" style="color:var(--red); font-size:13px;">⚠️ 기한 지난 미완료 항목</div>
+            </div>
+            <div class="sp-body" style="background:var(--red-l);">
+              <div class="evt-list" id="overdueList"></div>
+            </div>
+            
           </div>
         </div>
       </div>
@@ -876,7 +890,6 @@ function showToast(msg){ const t=document.createElement('div');t.className='toas
 const DAY_KR=['일','월','화','수','목','금','토'];
 const COLOR_LBL={yellow:'노랑',blue:'파랑',green:'초록',red:'빨강',purple:'보라'};
 
-// 말머리 추가 헬퍼 함수
 function addPrefix(inputId, prefix) {
   const el = $(inputId);
   if (!el.value.startsWith(prefix)) {
@@ -886,8 +899,6 @@ function addPrefix(inputId, prefix) {
 
 // ── State ─────────────────────────────────────────────────────
 let currentUser = null; 
-// 🔥 [공유/개인 설정] 팀 전체가 똑같은 일정을 볼지, 개인별로 따로 볼지 결정합니다.
-// false = 개인용 캘린더 (로그인한 사람 데이터만 보임) / true = 팀 공용 캘린더
 const IS_TEAM_SHARED = false; 
 
 let curDate=new Date(), selDate=new Date();
@@ -955,7 +966,6 @@ function handleLogout() {
   window._fbAuth.signOut(window._auth);
 }
 
-// ── 신규 추가: B형태 (이전 데이터 개인 계정으로 가져오기) ──
 async function migrateOldData() {
   if(!currentUser || !fbReady) return;
   if(!confirm('가입 전 함께 사용하던 이전 일정을 내 계정으로 모두 복사해올까요?\n(중복 생성 방지를 위해 처음 1회만 누르시는 것을 권장합니다.)')) return;
@@ -967,17 +977,14 @@ async function migrateOldData() {
     let totalCount = 0;
 
     for (const colName of collectionsToMigrate) {
-      // 1. 기존 공용 경로에서 데이터 모두 읽기
       const oldSnapshot = await getDocs(collection(window._db, colName));
       for (const oldDoc of oldSnapshot.docs) {
         const data = oldDoc.data();
-        // 2. 내 개인 경로로 쓰기 (ID를 그대로 유지)
         await setDoc(doc(window._db, `users/${currentUser.uid}/${colName}`, oldDoc.id), data);
         totalCount++;
       }
     }
     showToast(`총 ${totalCount}개의 이전 데이터를 성공적으로 복사했습니다! ✓`);
-    // 가져오기 완료 후 버튼 숨기기
     $('migrateBtn').style.display = 'none';
   } catch(err) {
     console.error(err);
@@ -989,31 +996,27 @@ async function migrateOldData() {
 document.addEventListener('firebaseReady',()=>{
   fbReady=true; $('setupNotice').style.display='none';
   
-  // 로그인 상태 감지 리스너
   window._fbAuth.onAuthStateChanged(window._auth, user => {
     if(user) {
       currentUser = user;
       $('authOverlay').style.display = 'none';
       $('userInfoDisplay').textContent = user.email;
-      if($('migrateBtn')) $('migrateBtn').style.display = 'flex'; // 로그인시 버튼 표시
+      if($('migrateBtn')) $('migrateBtn').style.display = 'flex'; 
       loadLocal();
       initDataListeners();
     } else {
       currentUser = null;
       $('authOverlay').style.display = 'flex';
       $('userInfoDisplay').textContent = '';
-      if($('migrateBtn')) $('migrateBtn').style.display = 'none'; // 로그아웃시 버튼 숨김
+      if($('migrateBtn')) $('migrateBtn').style.display = 'none'; 
       clearDataListeners();
       
-      // 로그아웃 시 로컬 데이터 초기화 및 화면 리렌더링
       localEvents=[]; localProjects=[]; localTasks=[]; localNotes=[];
       renderCal(); renderWeekView(); renderDayEvts(); renderProjects(); renderTasks(); renderNotesPage();
     }
   });
 });
-setTimeout(()=>{ if(!fbReady) $('setupNotice').style.display='flex'; },2000);
 
-// 데이터 구독 시작
 function initDataListeners() {
   if(!currentUser) return;
   const { onSnapshot, orderBy, query } = window._fb;
@@ -1032,7 +1035,6 @@ function initDataListeners() {
   });
 }
 
-// 데이터 구독 취소
 function clearDataListeners() {
   if(unsubEvents) unsubEvents();
   if(unsubProjects) unsubProjects();
@@ -1077,7 +1079,6 @@ function startAlarmChecker(){ if(alarmTimer)clearInterval(alarmTimer); checkAlar
 function checkAlarms(){
   const now=new Date(), todayStr=fmtDate(now), nowMin=now.getHours()*60+now.getMinutes();
   
-  // 오늘 알람 확인
   const todayEvents = getEventsForDate(todayStr);
   todayEvents.forEach(evt=>{
     if(!evt.alarms)return;
@@ -1088,13 +1089,12 @@ function checkAlarms(){
 
     const[h,m]=t.split(':').map(Number); const evtMin=h*60+m;
     evt.alarms.forEach(off=>{
-      if(off === 1440) return; // 내일 일정 알람은 밑에서 처리
+      if(off === 1440) return; 
       const trig=evtMin-off; const key=(evt.id||evt._lid)+'_'+off+'_'+todayStr;
       if(nowMin>=trig&&nowMin<trig+2&&!dismissed.includes(key)) triggerAlarm(evt,off,key);
     });
   });
 
-  // 내일 일정 알람 (1하루 전 알람 처리)
   const tomorrow = new Date(now); tomorrow.setDate(tomorrow.getDate() + 1);
   const tomorrowStr = fmtDate(tomorrow);
   const tomorrowEvents = getEventsForDate(tomorrowStr);
@@ -1199,7 +1199,6 @@ function getDday(dateStr){
   return{label:`D+${Math.abs(diff)}`,cls:'dday-past'};
 }
 
-// 특정 날짜에 해당하는 반복 일정/업무 가져오기
 function getEventsForDate(ds) {
   const d = new Date(ds + 'T00:00:00');
   const dow = d.getDay();
@@ -1372,6 +1371,52 @@ function renderWeekView(){
   $('weekGrid').innerHTML=html;
 }
 
+// ── 기한 지난 미완료 항목 가져오기 ──
+function renderOverdueList() {
+  const todayStr = fmtDate(new Date());
+  const el = $('overdueList');
+  if (!el) return;
+  let html = '';
+
+  // 1. 기한 지난 일반 일정 (반복 안 하는 일정 중 어제까지 미완료된 것)
+  const overdueEvents = localEvents.filter(e => {
+    const isRepeating = e.repeatType && e.repeatType !== 'none';
+    if (isRepeating) return false; 
+    return e.date < todayStr && !e.done;
+  });
+
+  // 2. 기한 지난 수시 업무 (목표일이 어제까지인데 미완료된 것)
+  const overdueTasks = localTasks.filter(t => {
+    if (t.type !== 'adhoc' || !t.targetDate) return false;
+    const isDone = t.completedDates && t.completedDates.includes(t.targetDate);
+    return t.targetDate < todayStr && !isDone;
+  });
+
+  overdueEvents.forEach(e => {
+    const eid = e.id || e._lid;
+    html += `<div class="evt-item ${e.type}" style="display:flex; align-items:flex-start; gap:10px; cursor:pointer; background:#fff; border-color:var(--red);" onclick="openEventDetail('${eid}', '${e.date}')">
+      <div class="t-check" style="margin-top:2px; border-color:var(--red);" onclick="event.stopPropagation(); toggleEventDone('${eid}', '${e.date}')"></div>
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:600;color:var(--red);">${e.title}</div>
+        <div style="font-size:11px;color:var(--red);margin-top:4px">📅 예정 날짜: ${e.date}</div>
+      </div>
+    </div>`;
+  });
+
+  overdueTasks.forEach(t => {
+    const tid = t.id || t._lid;
+    html += `<div class="evt-item task" style="display:flex; align-items:flex-start; gap:10px; cursor:pointer; background:#fff; border-color:var(--red);" onclick="openTaskDetail('${tid}', '${t.targetDate}')">
+      <div class="t-check" style="margin-top:2px; border-color:var(--red);" onclick="event.stopPropagation(); toggleTaskDone('${tid}', '${t.targetDate}')"></div>
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:600;color:var(--red);">⚡ ${t.title}</div>
+        <div style="font-size:11px;color:var(--red);margin-top:4px">📅 목표일: ${t.targetDate}</div>
+      </div>
+    </div>`;
+  });
+
+  el.innerHTML = html || '<div class="empty" style="padding:16px 0;"><p style="font-size:12px;color:var(--red);opacity:0.7">지연된 미완료 항목이 없습니다 🎉</p></div>';
+}
+
 // ── 날짜 선택 & 사이드 패널 ──
 function selectDate(ds){
   selDate=new Date(ds+'T00:00:00');
@@ -1420,6 +1465,9 @@ function renderDayEvts(){
   });
 
   el.innerHTML = html || '<div class="empty"><div class="ei">📅</div><p>이 날의 일정이 없습니다</p></div>';
+  
+  // 패널을 다시 그릴 때마다 미완료 항목(과거) 영역도 업데이트
+  renderOverdueList();
 }
 
 // ── 일정 반복 UI 핸들링 ──
@@ -1739,7 +1787,6 @@ async function saveMeeting(){
   setMeetings(curProjId,m);$('addMtForm').style.display='none';renderMeetings();
   showToast('회의 기록 저장 ✓');
 
-  // 캘린더 자동 연동
   if($('mtSyncCal').checked){
     const evt={title:`[회의] ${t}`,date:mtDate,startTime:mtTime,endTime:'',type:'meeting',projectId:curProjId,note:mtNotes,alarms:[], done:false, repeatType:'none', author: currentUser ? currentUser.email : ''};
     if(fbReady){
@@ -1916,7 +1963,6 @@ async function toggleTaskDoneFromDetail() {
   await toggleTaskDone(curTaskId, curTaskDate);
   openTaskDetail(curTaskId, curTaskDate); 
 }
-
 
 // ── Task Detail ──
 const typeIconMap={'recurring-daily':'🔁','recurring-weekly':'📆','recurring-monthly':'🗓','adhoc':'⚡'};
