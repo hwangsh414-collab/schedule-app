@@ -749,8 +749,8 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
           <select class="fs" id="taskPriority"><option value="medium">보통</option><option value="high">높음 🔴</option><option value="low">낮음 🟢</option></select>
         </div>
       </div>
-      <!-- 수시 업무 목표 일자 -->
-      <div class="fg" id="taskDateWrap" style="display:none"><label class="fl">목표 일자</label>
+      <!-- 수시/반복 업무 일자 (목표 일자 / 시작 일자) -->
+      <div class="fg" id="taskDateWrap"><label class="fl" id="taskDateLabel">시작 일자</label>
         <input class="fi" type="date" id="taskDate">
       </div>
       <!-- 시간 설정 (반복 업무) -->
@@ -1217,6 +1217,15 @@ function getEventsForDate(ds) {
 function getRecurringTasksForDate(ds){
   const d=new Date(ds+'T00:00:00'), dow=d.getDay(), dom=d.getDate();
   return localTasks.filter(t=>{
+    const isRecurring = t.type && t.type.startsWith('recurring');
+    if (!isRecurring) return false;
+    
+    const sd = t.targetDate || t.startDate;
+    if (sd) {
+        const startD = new Date(sd + 'T00:00:00');
+        if (d < startD) return false;
+    }
+    
     if(t.type==='recurring-daily') return true;
     if(t.type==='recurring-weekly') return t.repeatDays&&t.repeatDays.includes(dow);
     if(t.type==='recurring-monthly') return t.repeatDates&&t.repeatDates.includes(dom);
@@ -1373,45 +1382,81 @@ function renderWeekView(){
 
 // ── 기한 지난 미완료 항목 가져오기 ──
 function renderOverdueList() {
-  const todayStr = fmtDate(new Date());
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  const todayStr = fmtDate(today);
   const el = $('overdueList');
   if (!el) return;
   let html = '';
 
-  // 1. 기한 지난 일반 일정 (반복 안 하는 일정 중 어제까지 미완료된 것)
-  const overdueEvents = localEvents.filter(e => {
+  const renderOverdueItem = (item, kind, dateStr) => {
+    const id = item.id || item._lid;
+    let icon = kind === 'event' ? (item.repeatType && item.repeatType !== 'none' ? '🔁 ' : '') : (item.type && item.type.startsWith('recurring') ? '🔁 ' : '⚡ ');
+    let title = item.title;
+    let onClick = kind === 'event' ? `openEventDetail('${id}', '${dateStr}')` : `openTaskDetail('${id}', '${dateStr}')`;
+    let onToggle = kind === 'event' ? `toggleEventDone('${id}', '${dateStr}')` : `toggleTaskDone('${id}', '${dateStr}')`;
+    
+    return `<div class="evt-item ${kind === 'event' ? item.type : 'task'}" style="display:flex; align-items:flex-start; gap:10px; cursor:pointer; background:#fff; border-color:var(--red); margin-bottom:8px;" onclick="${onClick}">
+      <div class="t-check" style="margin-top:2px; border-color:var(--red);" onclick="event.stopPropagation(); ${onToggle}"></div>
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:600;color:var(--red);">${icon}${title}</div>
+        <div style="font-size:11px;color:var(--red);margin-top:4px">📅 예정 날짜: ${dateStr}</div>
+      </div>
+    </div>`;
+  };
+
+  // 1. 기한 지난 일반/반복 일정
+  localEvents.forEach(e => {
     const isRepeating = e.repeatType && e.repeatType !== 'none';
-    if (isRepeating) return false; 
-    return e.date < todayStr && !e.done;
+    if (!isRepeating) {
+      if (e.date < todayStr && !e.done) html += renderOverdueItem(e, 'event', e.date);
+    } else {
+      if (e.date) {
+        let startD = new Date(e.date + 'T00:00:00');
+        for (let d = new Date(startD); d < today; d.setDate(d.getDate() + 1)) {
+          const ds = fmtDate(d);
+          const dow = d.getDay(), dom = d.getDate();
+          let matches = false;
+          if (e.repeatType === 'daily') matches = true;
+          else if (e.repeatType === 'weekly' && e.repeatDays && e.repeatDays.includes(dow)) matches = true;
+          else if (e.repeatType === 'monthly' && e.repeatDates && e.repeatDates.includes(dom)) matches = true;
+          
+          if (matches) {
+            const isDone = e.completedDates && e.completedDates.includes(ds);
+            if (!isDone) html += renderOverdueItem(e, 'event', ds);
+          }
+        }
+      }
+    }
   });
 
-  // 2. 기한 지난 수시 업무 (목표일이 어제까지인데 미완료된 것)
-  const overdueTasks = localTasks.filter(t => {
-    if (t.type !== 'adhoc' || !t.targetDate) return false;
-    const isDone = t.completedDates && t.completedDates.includes(t.targetDate);
-    return t.targetDate < todayStr && !isDone;
-  });
-
-  overdueEvents.forEach(e => {
-    const eid = e.id || e._lid;
-    html += `<div class="evt-item ${e.type}" style="display:flex; align-items:flex-start; gap:10px; cursor:pointer; background:#fff; border-color:var(--red);" onclick="openEventDetail('${eid}', '${e.date}')">
-      <div class="t-check" style="margin-top:2px; border-color:var(--red);" onclick="event.stopPropagation(); toggleEventDone('${eid}', '${e.date}')"></div>
-      <div style="flex:1">
-        <div style="font-size:13px;font-weight:600;color:var(--red);">${e.title}</div>
-        <div style="font-size:11px;color:var(--red);margin-top:4px">📅 예정 날짜: ${e.date}</div>
-      </div>
-    </div>`;
-  });
-
-  overdueTasks.forEach(t => {
-    const tid = t.id || t._lid;
-    html += `<div class="evt-item task" style="display:flex; align-items:flex-start; gap:10px; cursor:pointer; background:#fff; border-color:var(--red);" onclick="openTaskDetail('${tid}', '${t.targetDate}')">
-      <div class="t-check" style="margin-top:2px; border-color:var(--red);" onclick="event.stopPropagation(); toggleTaskDone('${tid}', '${t.targetDate}')"></div>
-      <div style="flex:1">
-        <div style="font-size:13px;font-weight:600;color:var(--red);">⚡ ${t.title}</div>
-        <div style="font-size:11px;color:var(--red);margin-top:4px">📅 목표일: ${t.targetDate}</div>
-      </div>
-    </div>`;
+  // 2. 기한 지난 수시/반복 업무
+  localTasks.forEach(t => {
+    const isRepeating = t.type && t.type.startsWith('recurring');
+    const sd = t.targetDate || t.startDate;
+    if (!isRepeating) {
+      if (t.type === 'adhoc' && sd && sd < todayStr) {
+         const isDone = t.completedDates && t.completedDates.includes(sd);
+         if (!isDone) html += renderOverdueItem(t, 'task', sd);
+      }
+    } else {
+      if (sd) {
+        let startD = new Date(sd + 'T00:00:00');
+        for (let d = new Date(startD); d < today; d.setDate(d.getDate() + 1)) {
+          const ds = fmtDate(d);
+          const dow = d.getDay(), dom = d.getDate();
+          let matches = false;
+          if (t.type === 'recurring-daily') matches = true;
+          else if (t.type === 'recurring-weekly' && t.repeatDays && t.repeatDays.includes(dow)) matches = true;
+          else if (t.type === 'recurring-monthly' && t.repeatDates && t.repeatDates.includes(dom)) matches = true;
+          
+          if (matches) {
+            const isDone = t.completedDates && t.completedDates.includes(ds);
+            if (!isDone) html += renderOverdueItem(t, 'task', ds);
+          }
+        }
+      }
+    }
   });
 
   el.innerHTML = html || '<div class="empty" style="padding:16px 0;"><p style="font-size:12px;color:var(--red);opacity:0.7">지연된 미완료 항목이 없습니다 🎉</p></div>';
@@ -1466,7 +1511,6 @@ function renderDayEvts(){
 
   el.innerHTML = html || '<div class="empty"><div class="ei">📅</div><p>이 날의 일정이 없습니다</p></div>';
   
-  // 패널을 다시 그릴 때마다 미완료 항목(과거) 영역도 업데이트
   renderOverdueList();
 }
 
@@ -1839,10 +1883,10 @@ function renderLinkedNotes(){
 // ══════════════════════════════════════════════════════════════
 function onTaskTypeChange(val){
   $('weeklyPicker').classList.remove('show'); $('monthlyPicker').classList.remove('show');
-  $('taskDateWrap').style.display = 'none'; 
+  $('taskDateWrap').style.display = 'block'; 
   if(val==='recurring-weekly') $('weeklyPicker').classList.add('show');
   if(val==='recurring-monthly'){ $('monthlyPicker').classList.add('show'); buildDateBtns(); }
-  if(val==='adhoc') $('taskDateWrap').style.display = 'block';
+  $('taskDateLabel').textContent = val === 'adhoc' ? '목표 일자' : '시작 일자';
 }
 function toggleDay(btn){ btn.classList.toggle('sel') }
 function buildDateBtns(){
@@ -1867,14 +1911,22 @@ function renderTasks(){
   const typeLabel={'recurring-daily':'매일','recurring-weekly':'매주','recurring-monthly':'매월','adhoc':'수시'};
   const iconCls={'recurring-daily':'ic-daily','recurring-weekly':'ic-weekly','recurring-monthly':'ic-monthly','adhoc':'ic-adhoc'};
   const ptag={high:'<span class="tag tag-r">높음</span>',medium:'<span class="tag tag-a">보통</span>',low:'<span class="tag tag-g">낮음</span>'};
+  
   const renderList=(tasks,elId)=>{
     $(elId).innerHTML=!tasks.length
       ?`<div class="empty"><div class="ei">${elId==='recurringList'?'🔁':'⚡'}</div><p>없음</p></div>`
-      :tasks.map(t=>{const tid=t.id||t._lid;const nc=getLinkedNoteCount('task',tid);return`<div class="rec-card" onclick="openTaskDetail('${tid}')">
+      :tasks.map(t=>{
+          const tid=t.id||t._lid;
+          const nc=getLinkedNoteCount('task',tid);
+          let dateInfo = '';
+          if (t.targetDate) {
+             dateInfo = ` · 📅 ${t.type==='adhoc' ? '목표일:' : '시작일:'} ${t.targetDate}`;
+          }
+          return`<div class="rec-card" onclick="openTaskDetail('${tid}')">
           <div class="rec-icon ${iconCls[t.type]||'ic-adhoc'}">${typeIcon[t.type]||'⚡'}</div>
           <div class="rec-info">
             <div class="rec-title">${t.title}</div>
-            <div class="rec-meta">${typeLabel[t.type]}${t.time?' · ⏰ '+t.time:''}${t.targetDate?' · 📅 '+t.targetDate:''}${t.assignee?' · 👤 '+t.assignee:''}${t.desc?' · '+t.desc:''}</div>
+            <div class="rec-meta">${typeLabel[t.type]}${t.time?' · ⏰ '+t.time:''}${dateInfo}${t.assignee?' · 👤 '+t.assignee:''}${t.desc?' · '+t.desc:''}</div>
             ${renderTaskRepeatInfo(t)}
             ${nc>0?`<div style="margin-top:6px"><span class="link-badge lb-task">📝 연결 노트 ${nc}개</span></div>`:''}
           </div>
@@ -1885,15 +1937,19 @@ function renderTasks(){
   renderList(recurring,'recurringList'); renderList(adhoc,'adHocList');
   $('allTasksList').innerHTML=!localTasks.length
     ?'<div class="empty"><div class="ei">✅</div><p>업무 없음</p></div>'
-    :localTasks.map(t=>`<div class="task-item"><div class="t-check"></div>
+    :localTasks.map(t=>{
+        let dateInfo = '';
+        if (t.targetDate) dateInfo = ` · 📅 ${t.type==='adhoc' ? '목표일:' : '시작일:'} ${t.targetDate}`;
+        return `<div class="task-item"><div class="t-check"></div>
         <div class="t-body"><div class="t-title">${t.title}</div>
-        <div class="t-meta">${typeIcon[t.type]} ${typeLabel[t.type]}${t.time?' · ⏰ '+t.time:''}${t.targetDate?' · 📅 '+t.targetDate:''}${t.assignee?' · 👤 '+t.assignee:''}${t.desc?' · '+t.desc:''}</div></div>
-        ${ptag[t.priority]||''}</div>`).join('');
+        <div class="t-meta">${typeIcon[t.type]} ${typeLabel[t.type]}${t.time?' · ⏰ '+t.time:''}${dateInfo}${t.assignee?' · 👤 '+t.assignee:''}${t.desc?' · '+t.desc:''}</div></div>
+        ${ptag[t.priority]||''}</div>`}).join('');
 }
 
 function openAddTask(){
   $('taskModalTitle').textContent='업무 추가';
-  ['taskTitle','taskAssignee','taskDesc','taskTime','taskDate'].forEach(id=>$(id).value='');
+  ['taskTitle','taskAssignee','taskDesc','taskTime'].forEach(id=>$(id).value='');
+  $('taskDate').value = fmtDate(selDate); // 기본값: 캘린더 선택일
   $('taskType').value='recurring-weekly'; $('taskPriority').value='medium'; $('taskEditId').value='';
   document.querySelectorAll('.day-btn, .date-btn').forEach(b=>b.classList.remove('sel'));
   $('monthlyDates').innerHTML=''; onTaskTypeChange('recurring-weekly');
@@ -1920,7 +1976,7 @@ async function saveTask(){
   const title=$('taskTitle').value.trim(); if(!title){showToast('업무명을 입력해 주세요');return}
   const type=$('taskType').value; const editId=$('taskEditId').value;
   const task={title,type,priority:$('taskPriority').value,assignee:$('taskAssignee').value,desc:$('taskDesc').value,time:$('taskTime').value,
-    targetDate: type==='adhoc'?$('taskDate').value:'',
+    targetDate: $('taskDate').value,
     repeatDays:type==='recurring-weekly'?getSelDays():[],
     repeatDates:type==='recurring-monthly'?getSelDates():[],
     author: currentUser ? currentUser.email : ''};
@@ -1980,7 +2036,7 @@ function openTaskDetail(tid, dateStr){
   
   let meta=`${typeIconMap[t.type]||'⚡'} ${typeLabelMap[t.type]||''}`;
   if(t.time) meta+=` · ⏰ ${t.time}`;
-  if(t.targetDate) meta+=` · 📅 목표일: ${t.targetDate}`;
+  if(t.targetDate) meta+=` · 📅 ${t.type==='adhoc'?'목표일':'시작일'}: ${t.targetDate}`;
   if(t.assignee) meta+=` · 👤 ${t.assignee}`;
   meta+= ` · 📌 기준일: ${curTaskDate}`;
   $('tdMeta').textContent=meta;
