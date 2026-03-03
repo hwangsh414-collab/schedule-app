@@ -381,6 +381,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
   <div style="margin-top:auto;padding:16px;border-top:1px solid var(--border)">
     <div id="userInfoDisplay" style="font-size:12px; font-weight:700; color:var(--accent); margin-bottom:10px; text-align:center; word-break:break-all;"></div>
     <button class="btn btn-p btn-sm" id="migrateBtn" style="width:100%; justify-content:center; margin-bottom:6px; display:none;" onclick="migrateOldData()">⬇️ 이전 공용데이터 가져오기</button>
+    <button class="btn btn-s btn-sm" id="alarmToggleBtn" style="width:100%; justify-content:center; margin-bottom:6px;" onclick="toggleAppAlarm()">🔔 알림 켜짐 (끄기)</button>
     <button class="btn btn-s btn-sm" style="width:100%; justify-content:center; margin-bottom:12px;" onclick="handleLogout()">로그아웃</button>
     <div id="alarmSidebarStatus" style="font-size:11px;color:var(--muted);text-align:center"></div>
   </div>
@@ -918,6 +919,8 @@ let dismissed = JSON.parse(localStorage.getItem('fd')||'[]');
 
 let unsubEvents, unsubProjects, unsubTasks, unsubNotes;
 
+let isAppAlarmOn = localStorage.getItem('appAlarmOn') !== 'false';
+
 // ── DB 경로 헬퍼 함수 ──
 const getColl = (name) => IS_TEAM_SHARED ? window._fb.collection(window._db, name) : window._fb.collection(window._db, `users/${currentUser.uid}/${name}`);
 const getDoc = (name, id) => IS_TEAM_SHARED ? window._fb.doc(window._db, name, id) : window._fb.doc(window._db, `users/${currentUser.uid}/${name}`, id);
@@ -1067,15 +1070,70 @@ function toggleSidebar(){ $('sidebar').classList.toggle('open') }
 //  🔔 알람 시스템
 // ══════════════════════════════════════════════════════════════
 function toggleAlarmOpt(cb){ cb.closest('.alarm-opt').classList.toggle('sel',cb.checked) }
+
+function updateAlarmToggleUI() {
+  const btn = $('alarmToggleBtn');
+  if (!btn) return;
+  if (isAppAlarmOn) {
+    btn.innerHTML = '🔔 알림 켜짐 (끄기)';
+    btn.className = 'btn btn-s btn-sm';
+  } else {
+    btn.innerHTML = '🔕 알림 꺼짐 (켜기)';
+    btn.className = 'btn btn-d btn-sm'; 
+  }
+}
+
+async function toggleAppAlarm() {
+  isAppAlarmOn = !isAppAlarmOn;
+  localStorage.setItem('appAlarmOn', isAppAlarmOn);
+  updateAlarmToggleUI();
+
+  if (isAppAlarmOn) {
+    if ('Notification' in window) {
+      if (Notification.permission === 'default') {
+        const p = await Notification.requestPermission();
+        if (p === 'granted') {
+          $('alarmSidebarStatus').textContent = '🔔 브라우저 알림 활성화됨';
+          $('notifBanner').style.display = 'none';
+        } else {
+          $('alarmSidebarStatus').textContent = '⚠️ 브라우저 알림 차단됨';
+          showToast('브라우저 설정(주소창 자물쇠)에서 알림을 허용해주세요.');
+        }
+      } else if (Notification.permission === 'denied') {
+        showToast('브라우저 설정(주소창 자물쇠)에서 알림 차단을 해제해주세요.');
+        $('alarmSidebarStatus').textContent = '⚠️ 브라우저 알림 차단됨';
+      } else if (Notification.permission === 'granted') {
+         $('alarmSidebarStatus').textContent = '🔔 브라우저 알림 활성화됨';
+      }
+    }
+    startAlarmChecker();
+    showToast('앱 알림이 활성화되었습니다.');
+  } else {
+    if (alarmTimer) clearInterval(alarmTimer);
+    $('alarmSidebarStatus').textContent = '🔕 알림 꺼짐 상태';
+    showToast('앱 알림이 해제되었습니다. (음소거)');
+  }
+}
+
 async function requestNotifPermission(){
   if(!('Notification'in window)){showToast('이 브라우저는 알림을 지원하지 않습니다');return}
   const p=await Notification.requestPermission();
   if(p==='granted'){
-    $('notifBanner').style.display='none'; $('alarmSidebarStatus').textContent='🔔 알람 활성화됨';
-    showToast('알람이 활성화되었습니다 🔔'); startAlarmChecker();
-  } else showToast('알림 권한이 거부되었습니다');
+    $('notifBanner').style.display='none'; 
+    $('alarmSidebarStatus').textContent='🔔 브라우저 알림 활성화됨';
+    isAppAlarmOn = true;
+    localStorage.setItem('appAlarmOn', true);
+    updateAlarmToggleUI();
+    showToast('알람이 활성화되었습니다 🔔'); 
+    startAlarmChecker();
+  } else showToast('알림 권한이 거부되었습니다. (주소창 자물쇠 아이콘 확인)');
 }
-function startAlarmChecker(){ if(alarmTimer)clearInterval(alarmTimer); checkAlarms(); alarmTimer=setInterval(checkAlarms,60000); }
+function startAlarmChecker(){ 
+  if(alarmTimer)clearInterval(alarmTimer); 
+  if(!isAppAlarmOn) return; 
+  checkAlarms(); 
+  alarmTimer=setInterval(checkAlarms,60000); 
+}
 function checkAlarms(){
   const now=new Date(), todayStr=fmtDate(now), nowMin=now.getHours()*60+now.getMinutes();
   
@@ -1139,6 +1197,7 @@ function triggerAlarm(evt,off,key){
 }
 function toggleAlarmPanel(){ $('alarmPanel').classList.toggle('open') }
 document.addEventListener('click',e=>{ const p=$('alarmPanel'),b=document.querySelector('.bell-btn'); if(!p.contains(e.target)&&!b.contains(e.target))p.classList.remove('open'); });
+
 function updateAlarmPanel(){
   const now=new Date(); const upcoming=[];
   const d1 = new Date(), d2 = new Date(now); d2.setDate(d2.getDate()+1);
@@ -1158,6 +1217,10 @@ function updateAlarmPanel(){
       if (dt < now) return;
       
       evt.alarms.forEach(off => {
+        // 수정된 부분: 해제된 알람(dismissed)인지 검사하여 목록에서 제외합니다.
+        const key = (evt.id || evt._lid) + '_' + off + '_' + ds;
+        if (dismissed.includes(key)) return; 
+
         const at = new Date(dt - off*60000);
         if (at > now) upcoming.push({evt, at, off, ds});
       });
@@ -1176,13 +1239,33 @@ function updateAlarmPanel(){
     return`<div class="ai"><div class="ai-dot${urg?' urgent':soon?' soon':''}"></div><div style="flex:1"><div style="font-size:13px;font-weight:500">${evt.title}</div><div style="font-size:11px;color:var(--muted);margin-top:2px">${ds} ${t} · ${ol} · <strong>${dl}</strong></div></div><button class="ai-dismiss" onclick="dismissAlarm('${evt.id||evt._lid}',${off},'${ds}',this)">✕</button></div>`;
   }).join('');
 }
+
 function dismissAlarm(eid,off,ds,btn){
   const k=eid+'_'+off+'_'+ds; if(!dismissed.includes(k))dismissed.push(k);
   localStorage.setItem('fd',JSON.stringify(dismissed)); btn.closest('.ai').remove(); updateAlarmPanel();
 }
+
 function dismissAllAlarms(){
-  localEvents.forEach(evt=>{if(!evt.alarms)return;const t=fmtDate(new Date());evt.alarms.forEach(o=>dismissed.push((evt.id||evt._lid)+'_'+o+'_'+t));});
-  localStorage.setItem('fd',JSON.stringify(dismissed)); updateAlarmPanel(); $('alarmPanel').classList.remove('open'); showToast('모든 알람이 해제되었습니다');
+  // 수정된 부분: 반복 일정과 내일 일정의 알람까지 꼼꼼하게 찾아서 모두 지웁니다.
+  const now = new Date();
+  const d1 = new Date(), d2 = new Date(now); d2.setDate(d2.getDate()+1);
+  const dates = [fmtDate(d1), fmtDate(d2)];
+  
+  dates.forEach(ds => {
+    const evts = getEventsForDate(ds);
+    evts.forEach(evt => {
+      if(!evt.alarms) return;
+      evt.alarms.forEach(off => {
+        const key = (evt.id || evt._lid) + '_' + off + '_' + ds;
+        if(!dismissed.includes(key)) dismissed.push(key);
+      });
+    });
+  });
+  
+  localStorage.setItem('fd',JSON.stringify(dismissed)); 
+  updateAlarmPanel(); 
+  $('alarmPanel').classList.remove('open'); 
+  showToast('모든 알람이 해제되었습니다');
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -2162,11 +2245,23 @@ function editNoteFromDetail(){
 
 // ── Init ─────────────────────────────────────────────────────
 updateCalTitle(); renderCal(); selectDate(fmtDate(new Date())); updateEvtProjSel(); updateAlarmPanel(); buildDateBtns();
-if('Notification'in window){
-  if(Notification.permission==='granted'){startAlarmChecker();$('alarmSidebarStatus').textContent='🔔 알람 활성화됨'}
-  else if(Notification.permission==='default') $('notifBanner').style.display='flex';
-  else $('alarmSidebarStatus').textContent='🔕 알람 비활성화';
-} else $('alarmSidebarStatus').textContent='⚠️ 알람 미지원 브라우저';
+updateAlarmToggleUI();
+
+if (isAppAlarmOn) {
+  if('Notification'in window){
+    if(Notification.permission==='granted'){
+      startAlarmChecker();
+      $('alarmSidebarStatus').textContent='🔔 브라우저 알림 활성화됨';
+    }
+    else if(Notification.permission==='default') {
+      $('notifBanner').style.display='flex';
+      $('alarmSidebarStatus').textContent='ℹ️ 브라우저 권한 필요';
+    }
+    else $('alarmSidebarStatus').textContent='⚠️ 브라우저 알림 차단됨';
+  } else $('alarmSidebarStatus').textContent='⚠️ 알람 미지원 브라우저';
+} else {
+  $('alarmSidebarStatus').textContent='🔕 알림 꺼짐 상태';
+}
 </script>
 </body>
 </html>
