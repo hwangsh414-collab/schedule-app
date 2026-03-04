@@ -6,16 +6,12 @@
 <title>플로우 — 일정 관리</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="플로우">
+<link rel="icon" type="image/png" href="./icon.png">
+<link rel="apple-touch-icon" href="./icon.png">
+<meta name="theme-color" content="#2563EB">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=Gowun+Dodum&display=swap" rel="stylesheet">
 
-<!-- 탭 브라우저(PC) 파비콘 -->
-<link rel="icon" type="image/png" href="./icon.png">
-<!-- 아이폰(iOS) 홈 화면 아이콘 -->
-<link rel="apple-touch-icon" href="./icon.png">
-<!-- 안드로이드 / 윈도우 PWA 웹 매니페스트 아이콘 색상 설정 -->
-<meta name="theme-color" content="#2563EB">
-  
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getFirestore, collection, addDoc, doc, updateDoc, deleteDoc, query, orderBy, onSnapshot, serverTimestamp, getDocs, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
@@ -456,7 +452,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
               <div class="evt-list" id="dayEvtList"></div>
             </div>
             
-            <!-- 신규: 기한 지난 미완료 항목 (지연 항목) 영역 -->
+            <!-- 기한 지난 미완료 항목 (지연 항목) 영역 -->
             <div class="sp-head" style="border-top:1px solid var(--border); background:var(--red-l);">
               <div class="sp-title" style="color:var(--red); font-size:13px;">⚠️ 기한 지난 미완료 항목</div>
             </div>
@@ -541,7 +537,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
       <div class="fr">
         <div class="fg"><label class="fl">날짜 / 시작일</label><input class="fi" type="date" id="evtDate"></div>
         <div class="fg">
-          <label class="fl">시간</label>
+          <label class="fl">시간 <span style="font-weight:400;text-transform:none;font-size:11px">(알람 켤 시 미지정하면 오전 9시)</span></label>
           <div style="display:flex; align-items:center; gap:6px;">
             <input class="fi" type="time" id="evtStartTime" style="flex:1;">
             <span style="color:var(--muted); font-weight:600;">~</span>
@@ -762,7 +758,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
         <input class="fi" type="date" id="taskDate">
       </div>
       <!-- 시간 설정 (반복 업무) -->
-      <div class="fg"><label class="fl">시간 <span style="font-weight:400;text-transform:none;font-size:11px">(캘린더 표시용, 선택)</span></label>
+      <div class="fg"><label class="fl">시간 <span style="font-weight:400;text-transform:none;font-size:11px">(알람 켤 시 미지정하면 오전 9시)</span></label>
         <input class="fi" type="time" id="taskTime" placeholder="시간 선택 (선택사항)">
       </div>
       <!-- 매주 요일 선택 -->
@@ -786,6 +782,21 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
       </div>
       <div class="fg"><label class="fl">담당자</label><input class="fi" id="taskAssignee" placeholder="담당자 (선택)"></div>
       <div class="fg"><label class="fl">설명</label><textarea class="fta" id="taskDesc" placeholder="업무 설명 (선택)" style="min-height:60px"></textarea></div>
+      
+      <!-- 신규: 업무도 알람 설정 가능 -->
+      <div class="alarm-box">
+        <label class="fl" style="color:var(--warn)">🔔 알람 설정</label>
+        <div style="font-size:12px;color:var(--muted)">알람 시점 선택 (목표/시작 시간 기준, 시간 미지정 시 오전 9시 기준)</div>
+        <div class="alarm-opts">
+          <label class="alarm-opt"><input type="checkbox" value="0" onchange="toggleAlarmOpt(this)"> 정시</label>
+          <label class="alarm-opt"><input type="checkbox" value="5" onchange="toggleAlarmOpt(this)"> 5분 전</label>
+          <label class="alarm-opt"><input type="checkbox" value="10" onchange="toggleAlarmOpt(this)"> 10분 전</label>
+          <label class="alarm-opt"><input type="checkbox" value="30" onchange="toggleAlarmOpt(this)"> 30분 전</label>
+          <label class="alarm-opt"><input type="checkbox" value="60" onchange="toggleAlarmOpt(this)"> 1시간 전</label>
+          <label class="alarm-opt"><input type="checkbox" value="1440" onchange="toggleAlarmOpt(this)"> 하루 전</label>
+        </div>
+      </div>
+
       <input type="hidden" id="taskEditId">
       <div class="fa">
         <button class="btn btn-s" onclick="closeModal('moAddTask')">취소</button>
@@ -923,10 +934,9 @@ let localNotes   = [];
 
 let fbReady=false, alarmTimer=null;
 let dismissed = JSON.parse(localStorage.getItem('fd')||'[]');
+let isAppAlarmOn = localStorage.getItem('appAlarmOn') !== 'false';
 
 let unsubEvents, unsubProjects, unsubTasks, unsubNotes;
-
-let isAppAlarmOn = localStorage.getItem('appAlarmOn') !== 'false';
 
 // ── DB 경로 헬퍼 함수 ──
 const getColl = (name) => IS_TEAM_SHARED ? window._fb.collection(window._db, name) : window._fb.collection(window._db, `users/${currentUser.uid}/${name}`);
@@ -1074,7 +1084,7 @@ function showPage(name){
 function toggleSidebar(){ $('sidebar').classList.toggle('open') }
 
 // ══════════════════════════════════════════════════════════════
-//  🔔 알람 시스템
+//  🔔 알람 시스템 (일정 + 업무 통합)
 // ══════════════════════════════════════════════════════════════
 function toggleAlarmOpt(cb){ cb.closest('.alarm-opt').classList.toggle('sel',cb.checked) }
 
@@ -1135,61 +1145,73 @@ async function requestNotifPermission(){
     startAlarmChecker();
   } else showToast('알림 권한이 거부되었습니다. (주소창 자물쇠 아이콘 확인)');
 }
+
 function startAlarmChecker(){ 
   if(alarmTimer)clearInterval(alarmTimer); 
   if(!isAppAlarmOn) return; 
   checkAlarms(); 
   alarmTimer=setInterval(checkAlarms,60000); 
 }
+
+// 특정 날짜에 알람이 울려야 할 모든 일정/업무 추출
+function getAlarmableItemsForDate(ds) {
+    const items = [];
+    
+    // 1. 일반/반복 일정 추출
+    getEventsForDate(ds).forEach(e => {
+        if(!e.alarms || e.alarms.length === 0) return;
+        const isDone = (e.repeatType && e.repeatType !== 'none') ? (e.completedDates && e.completedDates.includes(ds)) : e.done;
+        if(isDone) return;
+        items.push({ id: e.id || e._lid, title: e.title, time: e.startTime || e.time || '09:00', alarms: e.alarms, date: ds });
+    });
+
+    // 2. 수시/반복 업무 추출
+    getTasksForDate(ds).forEach(t => {
+        if(!t.alarms || t.alarms.length === 0) return;
+        const isDone = t.completedDates && t.completedDates.includes(ds);
+        if(isDone) return;
+        items.push({ id: t.id || t._lid, title: t.title, time: t.time || '09:00', alarms: t.alarms, date: ds });
+    });
+
+    return items;
+}
+
 function checkAlarms(){
   const now=new Date(), todayStr=fmtDate(now), nowMin=now.getHours()*60+now.getMinutes();
   
-  const todayEvents = getEventsForDate(todayStr);
-  todayEvents.forEach(evt=>{
-    if(!evt.alarms)return;
-    const t = evt.startTime || evt.time;
-    if(!t)return;
-    const isDone = (evt.repeatType && evt.repeatType !== 'none') ? (evt.completedDates && evt.completedDates.includes(todayStr)) : evt.done;
-    if(isDone) return; 
-
-    const[h,m]=t.split(':').map(Number); const evtMin=h*60+m;
-    evt.alarms.forEach(off=>{
+  getAlarmableItemsForDate(todayStr).forEach(item => {
+    const[h,m]=item.time.split(':').map(Number); const evtMin=h*60+m;
+    item.alarms.forEach(off=>{
       if(off === 1440) return; 
-      const trig=evtMin-off; const key=(evt.id||evt._lid)+'_'+off+'_'+todayStr;
-      if(nowMin>=trig&&nowMin<trig+2&&!dismissed.includes(key)) triggerAlarm(evt,off,key);
+      const trig=evtMin-off; const key=item.id+'_'+off+'_'+todayStr;
+      if(nowMin>=trig&&nowMin<trig+2&&!dismissed.includes(key)) triggerAlarm(item,off,key,item.time);
     });
   });
 
   const tomorrow = new Date(now); tomorrow.setDate(tomorrow.getDate() + 1);
   const tomorrowStr = fmtDate(tomorrow);
-  const tomorrowEvents = getEventsForDate(tomorrowStr);
-  tomorrowEvents.forEach(evt => {
-     if (!evt.alarms || !evt.alarms.includes(1440)) return;
-     const t = evt.startTime || evt.time;
-     if (!t) return;
-     const isDone = (evt.repeatType && evt.repeatType !== 'none') ? (evt.completedDates && evt.completedDates.includes(tomorrowStr)) : evt.done;
-     if (isDone) return;
-     
-     const dt = new Date(tomorrowStr + 'T' + t);
+  getAlarmableItemsForDate(tomorrowStr).forEach(item => {
+     if (!item.alarms.includes(1440)) return;
+     const dt = new Date(tomorrowStr + 'T' + item.time);
      const diff = (dt - now) / 60000;
      if (diff > 1439 && diff <= 1441) {
-        const key = (evt.id || evt._lid) + '_1440_' + tomorrowStr;
-        if(!dismissed.includes(key)) triggerAlarm(evt, 1440, key);
+        const key = item.id + '_1440_' + tomorrowStr;
+        if(!dismissed.includes(key)) triggerAlarm(item, 1440, key, item.time);
      }
   });
 
   updateAlarmPanel();
 }
-function triggerAlarm(evt,off,key){
-  const t = evt.startTime || evt.time;
+
+function triggerAlarm(item,off,key,timeStr){
   const lbl=off===0?'지금 시작!':off===1440?'내일':`${off}분 후`;
   if('Notification'in window&&Notification.permission==='granted'){
-    const n=new Notification(`🔔 ${evt.title}`,{body:`${t} · ${lbl}`,tag:key||'flow'});
+    const n=new Notification(`🔔 ${item.title}`,{body:`${timeStr} · ${lbl}`,tag:key||'flow'});
     n.onclick=()=>{window.focus();n.close()};
   }
   const pop=document.createElement('div');
   pop.className='alarm-popup'+(off===0?' urg':'');
-  pop.innerHTML=`<div style="font-size:28px">${off===0?'🚨':'🔔'}</div><div style="flex:1"><div style="font-size:14px;font-weight:700">${evt.title}</div><div style="font-size:12px;color:var(--muted);margin-top:3px">${t} — ${lbl}</div></div><button class="ap-close" onclick="this.parentElement.remove()">확인</button>`;
+  pop.innerHTML=`<div style="font-size:28px">${off===0?'🚨':'🔔'}</div><div style="flex:1"><div style="font-size:14px;font-weight:700">${item.title}</div><div style="font-size:12px;color:var(--muted);margin-top:3px">${timeStr} — ${lbl}</div></div><button class="ap-close" onclick="this.parentElement.remove()">확인</button>`;
   document.body.appendChild(pop); setTimeout(()=>pop.remove(),off===0?10000:6000);
   try{
     const ctx=new(window.AudioContext||window.webkitAudioContext)(); const cnt=off===0?3:1;
@@ -1202,6 +1224,7 @@ function triggerAlarm(evt,off,key){
   }catch(e){}
   if(key){dismissed.push(key);if(dismissed.length>200)dismissed=dismissed.slice(-100);localStorage.setItem('fd',JSON.stringify(dismissed))}
 }
+
 function toggleAlarmPanel(){ $('alarmPanel').classList.toggle('open') }
 document.addEventListener('click',e=>{ const p=$('alarmPanel'),b=document.querySelector('.bell-btn'); if(!p.contains(e.target)&&!b.contains(e.target))p.classList.remove('open'); });
 
@@ -1211,25 +1234,16 @@ function updateAlarmPanel(){
   const dates = [fmtDate(d1), fmtDate(d2)];
   
   dates.forEach(ds => {
-    const evts = getEventsForDate(ds);
-    evts.forEach(evt => {
-      if(!evt.alarms) return;
-      const t = evt.startTime || evt.time;
-      if(!t) return;
-      
-      const isDone = (evt.repeatType && evt.repeatType !== 'none') ? (evt.completedDates && evt.completedDates.includes(ds)) : evt.done;
-      if (isDone) return;
-      
-      const dt = new Date(ds + 'T' + t);
+    getAlarmableItemsForDate(ds).forEach(item => {
+      const dt = new Date(ds + 'T' + item.time);
       if (dt < now) return;
       
-      evt.alarms.forEach(off => {
-        // 수정된 부분: 해제된 알람(dismissed)인지 검사하여 목록에서 제외합니다.
-        const key = (evt.id || evt._lid) + '_' + off + '_' + ds;
+      item.alarms.forEach(off => {
+        const key = item.id + '_' + off + '_' + ds;
         if (dismissed.includes(key)) return; 
 
         const at = new Date(dt - off*60000);
-        if (at > now) upcoming.push({evt, at, off, ds});
+        if (at > now) upcoming.push({item, at, off, ds});
       });
     });
   });
@@ -1238,32 +1252,28 @@ function updateAlarmPanel(){
   const badge=$('alarmBadge'); badge.textContent=upcoming.length; badge.style.display=upcoming.length>0?'flex':'none';
   const body=$('alarmPanelBody');
   if(!upcoming.length){body.innerHTML='<div class="empty" style="padding:24px"><div class="ei">🔕</div><p>예정된 알람 없음</p></div>';return}
-  body.innerHTML=upcoming.slice(0,20).map(({evt,at,off,ds})=>{
-    const t = evt.startTime || evt.time;
+  body.innerHTML=upcoming.slice(0,20).map(({item,at,off,ds})=>{
     const dm=Math.round((at-now)/60000); const urg=dm<=10,soon=dm<=60;
     const dl=dm<60?`${dm}분 후`:dm<1440?`${Math.round(dm/60)}시간 후`:`${Math.round(dm/1440)}일 후`;
     const ol=off===0?'정시':off===1440?'하루 전':`${off}분 전`;
-    return`<div class="ai"><div class="ai-dot${urg?' urgent':soon?' soon':''}"></div><div style="flex:1"><div style="font-size:13px;font-weight:500">${evt.title}</div><div style="font-size:11px;color:var(--muted);margin-top:2px">${ds} ${t} · ${ol} · <strong>${dl}</strong></div></div><button class="ai-dismiss" onclick="dismissAlarm('${evt.id||evt._lid}',${off},'${ds}',this)">✕</button></div>`;
+    return`<div class="ai"><div class="ai-dot${urg?' urgent':soon?' soon':''}"></div><div style="flex:1"><div style="font-size:13px;font-weight:500">${item.title}</div><div style="font-size:11px;color:var(--muted);margin-top:2px">${ds} ${item.time} · ${ol} · <strong>${dl}</strong></div></div><button class="ai-dismiss" onclick="dismissAlarm('${item.id}',${off},'${ds}',this)">✕</button></div>`;
   }).join('');
 }
 
-function dismissAlarm(eid,off,ds,btn){
-  const k=eid+'_'+off+'_'+ds; if(!dismissed.includes(k))dismissed.push(k);
+function dismissAlarm(id,off,ds,btn){
+  const k=id+'_'+off+'_'+ds; if(!dismissed.includes(k))dismissed.push(k);
   localStorage.setItem('fd',JSON.stringify(dismissed)); btn.closest('.ai').remove(); updateAlarmPanel();
 }
 
 function dismissAllAlarms(){
-  // 수정된 부분: 반복 일정과 내일 일정의 알람까지 꼼꼼하게 찾아서 모두 지웁니다.
   const now = new Date();
   const d1 = new Date(), d2 = new Date(now); d2.setDate(d2.getDate()+1);
   const dates = [fmtDate(d1), fmtDate(d2)];
   
   dates.forEach(ds => {
-    const evts = getEventsForDate(ds);
-    evts.forEach(evt => {
-      if(!evt.alarms) return;
-      evt.alarms.forEach(off => {
-        const key = (evt.id || evt._lid) + '_' + off + '_' + ds;
+    getAlarmableItemsForDate(ds).forEach(item => {
+      item.alarms.forEach(off => {
+        const key = item.id + '_' + off + '_' + ds;
         if(!dismissed.includes(key)) dismissed.push(key);
       });
     });
@@ -1274,6 +1284,7 @@ function dismissAllAlarms(){
   $('alarmPanel').classList.remove('open'); 
   showToast('모든 알람이 해제되었습니다');
 }
+
 
 // ══════════════════════════════════════════════════════════════
 //  📅 캘린더 + D-day + 반복 업무 표시 + 주간 보기
@@ -1304,9 +1315,11 @@ function getEventsForDate(ds) {
   });
 }
 
-function getRecurringTasksForDate(ds){
+function getTasksForDate(ds){
   const d=new Date(ds+'T00:00:00'), dow=d.getDay(), dom=d.getDate();
   return localTasks.filter(t=>{
+    if (t.type === 'adhoc') return t.targetDate === ds;
+    
     const isRecurring = t.type && t.type.startsWith('recurring');
     if (!isRecurring) return false;
     
@@ -1364,7 +1377,7 @@ function renderCal(){
     const ds=fmtDate(d), isToday=ds===todayStr, isSel=ds===fmtDate(selDate);
     
     const devts=getEventsForDate(ds);
-    const rtasks=getRecurringTasksForDate(ds);
+    const dayTasks=getTasksForDate(ds);
     
     const allItems=[
       ...devts.map(e=>{
@@ -1374,9 +1387,10 @@ function renderCal(){
         const repIcon = (e.repeatType && e.repeatType !== 'none') ? '🔁 ' : '';
         return`<div class="cev ${e.type}${e.alarms&&e.alarms.length?' has-alarm':''}${isDone?' done':''}" onclick="event.stopPropagation();openEventDetail('${e.id||e._lid}', '${ds}')">${repIcon}${e.title}${ddLabel}</div>`;
       }),
-      ...rtasks.map(t=>{
+      ...dayTasks.map(t=>{
         const isDone = t.completedDates && t.completedDates.includes(ds);
-        return `<div class="cev recurring${isDone?' done':''}" onclick="event.stopPropagation();openTaskDetail('${t.id||t._lid}', '${ds}')">${t.time?'⏰':''} ${t.title}</div>`;
+        const icon = t.type==='adhoc' ? '⚡' : '🔁';
+        return `<div class="cev recurring${isDone?' done':''}" onclick="event.stopPropagation();openTaskDetail('${t.id||t._lid}', '${ds}')">${t.time?'⏰':''} ${icon} ${t.title}</div>`;
       })
     ];
     const visible=allItems.slice(0,3);
@@ -1409,7 +1423,7 @@ function renderWeekView(){
     const ds=fmtDate(d);
     const devts = getEventsForDate(ds);
     const noTimeEvts=devts.filter(e=>!e.startTime && !e.time);
-    const rtasks=getRecurringTasksForDate(ds).filter(t=>!t.time);
+    const dayTasks=getTasksForDate(ds).filter(t=>!t.time);
     html+=`<div class="wv-al-cell">`;
     noTimeEvts.forEach(e=>{
       const dd=e.type==='deadline'?getDday(ds):null;
@@ -1418,9 +1432,10 @@ function renderWeekView(){
       const repIcon = (e.repeatType && e.repeatType !== 'none') ? '🔁 ' : '';
       html+=`<div class="cev ${e.type}${isDone?' done':''}" style="font-size:10px" onclick="openEventDetail('${e.id||e._lid}', '${ds}')">${repIcon}${e.title}${ddTxt}</div>`;
     });
-    rtasks.forEach(t=>{
+    dayTasks.forEach(t=>{
       const isDone = t.completedDates && t.completedDates.includes(ds);
-      html+=`<div class="cev recurring${isDone?' done':''}" onclick="openTaskDetail('${t.id||t._lid}', '${ds}')">${t.title}</div>`;
+      const icon = t.type==='adhoc' ? '⚡' : '🔁';
+      html+=`<div class="cev recurring${isDone?' done':''}" onclick="openTaskDetail('${t.id||t._lid}', '${ds}')">${icon} ${t.title}</div>`;
     });
     html+=`</div>`;
   });
@@ -1438,15 +1453,11 @@ function renderWeekView(){
         if(!t)return false;
         return parseInt(t.split(':')[0])===h;
       });
-      const tEvts=localTasks.filter(t=>{
+      const tEvts=getTasksForDate(ds).filter(t=>{
         if(!t.time)return false;
-        const tDow=d.getDay(),tDom=d.getDate();
-        let matches=false;
-        if(t.type==='recurring-daily')matches=true;
-        else if(t.type==='recurring-weekly')matches=t.repeatDays&&t.repeatDays.includes(tDow);
-        else if(t.type==='recurring-monthly')matches=t.repeatDates&&t.repeatDates.includes(tDom);
-        return matches&&parseInt(t.time.split(':')[0])===h;
+        return parseInt(t.time.split(':')[0])===h;
       });
+      
       html+=`<div class="wv-cell">`;
       hEvts.forEach(e=>{
         const t = e.startTime || e.time;
@@ -1461,7 +1472,8 @@ function renderWeekView(){
       tEvts.forEach(t=>{
         const min=parseInt(t.time.split(':')[1]);
         const isDone = t.completedDates && t.completedDates.includes(ds);
-        html+=`<div class="wv-evt${isDone?' done':''}" style="top:${min/60*100}%;background:#F5F3FF;color:var(--purple);border-left:2px solid var(--purple)" onclick="openTaskDetail('${t.id||t._lid}', '${ds}')">🔁 ${t.title}</div>`;
+        const icon = t.type==='adhoc' ? '⚡' : '🔁';
+        html+=`<div class="wv-evt${isDone?' done':''}" style="top:${min/60*100}%;background:#F5F3FF;color:var(--purple);border-left:2px solid var(--purple)" onclick="openTaskDetail('${t.id||t._lid}', '${ds}')">${icon} ${t.title}</div>`;
       });
       html+=`</div>`;
     });
@@ -1564,7 +1576,7 @@ function selectDate(ds){
 function renderDayEvts(){
   const ds=fmtDate(selDate), el=$('dayEvtList');
   const evts=getEventsForDate(ds);
-  const rtasks=getRecurringTasksForDate(ds);
+  const dayTasks=getTasksForDate(ds);
   const tl={meeting:'📋 회의',task:'✅ 업무',deadline:'🔴 마감',reminder:'🔔 알림'};
 
   let html='';
@@ -1587,14 +1599,16 @@ function renderDayEvts(){
       </div>
     </div>`;
   });
-  rtasks.forEach(t=>{
+  dayTasks.forEach(t=>{
     const tid=t.id||t._lid;
     const isDone = t.completedDates && t.completedDates.includes(ds);
+    const isAdhoc = t.type === 'adhoc';
+    
     html+=`<div class="evt-item recurring-task" style="display:flex; align-items:flex-start; gap:10px; cursor:pointer;" onclick="openTaskDetail('${tid}', '${ds}')">
       <div class="t-check${isDone?' done':''}" style="margin-top:2px;" onclick="event.stopPropagation(); toggleTaskDone('${tid}', '${ds}')"></div>
       <div style="flex:1">
-        <div style="font-size:13px;font-weight:500;color:var(--purple);${isDone?'text-decoration:line-through;opacity:0.5;':''}">🔁 ${t.title}</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:4px">${t.time?'⏰ '+t.time+' · ':''}반복 업무${t.assignee?' · 👤 '+t.assignee:''}</div>
+        <div style="font-size:13px;font-weight:500;color:var(--purple);${isDone?'text-decoration:line-through;opacity:0.5;':''}">${isAdhoc ? '⚡ ' : '🔁 '}${t.title}${t.alarms&&t.alarms.length?'<span title="알람 설정됨" style="font-size:11px; margin-left:4px;">🔔</span>':''}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">${t.time?'⏰ '+t.time+' · ':''}${isAdhoc ? '수시 업무' : '반복 업무'}${t.assignee?' · 👤 '+t.assignee:''}</div>
       </div>
     </div>`;
   });
@@ -1674,7 +1688,8 @@ function openEventDetail(eid, ds){
 
   updateEvtProjSel();
   $('evtProject').value=e.projectId||'';
-  document.querySelectorAll('.alarm-opt input').forEach(cb=>{
+  
+  document.querySelectorAll('#moAddEvent .alarm-opt input').forEach(cb=>{
     cb.checked=e.alarms&&e.alarms.includes(parseInt(cb.value));
     cb.closest('.alarm-opt').classList.toggle('sel',cb.checked);
   });
@@ -1695,7 +1710,11 @@ function openAddEvent(){
   onEvtRepeatChange('none');
   document.querySelectorAll('.evt-day-btn, .evt-date-btn').forEach(b => b.classList.remove('sel'));
   
-  document.querySelectorAll('.alarm-opt input').forEach(cb=>{cb.checked=false;cb.closest('.alarm-opt').classList.remove('sel')});
+  // 알람 '10분 전' 자동 기본값 설정
+  document.querySelectorAll('#moAddEvent .alarm-opt input').forEach(cb=>{
+    cb.checked = (cb.value === '10'); 
+    cb.closest('.alarm-opt').classList.toggle('sel', cb.checked);
+  });
   updateEvtProjSel(); openModal('moAddEvent');
 }
 
@@ -2015,7 +2034,7 @@ function renderTasks(){
           return`<div class="rec-card" onclick="openTaskDetail('${tid}')">
           <div class="rec-icon ${iconCls[t.type]||'ic-adhoc'}">${typeIcon[t.type]||'⚡'}</div>
           <div class="rec-info">
-            <div class="rec-title">${t.title}</div>
+            <div class="rec-title">${t.title}${t.alarms&&t.alarms.length?'<span title="알람 설정됨" style="font-size:11px; margin-left:4px;">🔔</span>':''}</div>
             <div class="rec-meta">${typeLabel[t.type]}${t.time?' · ⏰ '+t.time:''}${dateInfo}${t.assignee?' · 👤 '+t.assignee:''}${t.desc?' · '+t.desc:''}</div>
             ${renderTaskRepeatInfo(t)}
             ${nc>0?`<div style="margin-top:6px"><span class="link-badge lb-task">📝 연결 노트 ${nc}개</span></div>`:''}
@@ -2031,7 +2050,7 @@ function renderTasks(){
         let dateInfo = '';
         if (t.targetDate) dateInfo = ` · 📅 ${t.type==='adhoc' ? '목표일:' : '시작일:'} ${t.targetDate}`;
         return `<div class="task-item"><div class="t-check"></div>
-        <div class="t-body"><div class="t-title">${t.title}</div>
+        <div class="t-body"><div class="t-title">${t.title}${t.alarms&&t.alarms.length?'<span title="알람 설정됨" style="font-size:11px; margin-left:4px;">🔔</span>':''}</div>
         <div class="t-meta">${typeIcon[t.type]} ${typeLabel[t.type]}${t.time?' · ⏰ '+t.time:''}${dateInfo}${t.assignee?' · 👤 '+t.assignee:''}${t.desc?' · '+t.desc:''}</div></div>
         ${ptag[t.priority]||''}</div>`}).join('');
 }
@@ -2043,6 +2062,13 @@ function openAddTask(){
   $('taskType').value='recurring-weekly'; $('taskPriority').value='medium'; $('taskEditId').value='';
   document.querySelectorAll('.day-btn, .date-btn').forEach(b=>b.classList.remove('sel'));
   $('monthlyDates').innerHTML=''; onTaskTypeChange('recurring-weekly');
+  
+  // 신규: 기본적으로 '10분 전' 알람 체크
+  document.querySelectorAll('#moAddTask .alarm-opt input').forEach(cb=>{
+    cb.checked = (cb.value === '10');
+    cb.closest('.alarm-opt').classList.toggle('sel', cb.checked);
+  });
+  
   openModal('moAddTask');
 }
 
@@ -2059,17 +2085,28 @@ function openEditTask(){
   $('monthlyDates').innerHTML=''; onTaskTypeChange(t.type||'recurring-weekly');
   if(t.repeatDays) document.querySelectorAll('.day-btn').forEach(b=>{ if(t.repeatDays.includes(parseInt(b.dataset.d))) b.classList.add('sel'); });
   if(t.repeatDates) document.querySelectorAll('.date-btn').forEach(b=>{ if(t.repeatDates.includes(parseInt(b.dataset.d))) b.classList.add('sel'); });
+  
+  // 알람 설정 복원
+  document.querySelectorAll('#moAddTask .alarm-opt input').forEach(cb=>{
+    cb.checked=t.alarms&&t.alarms.includes(parseInt(cb.value));
+    cb.closest('.alarm-opt').classList.toggle('sel',cb.checked);
+  });
+  
   closeModal('moTaskDetail'); openModal('moAddTask');
 }
 
 async function saveTask(){
   const title=$('taskTitle').value.trim(); if(!title){showToast('업무명을 입력해 주세요');return}
   const type=$('taskType').value; const editId=$('taskEditId').value;
+  const alarms=[...$('moAddTask').querySelectorAll('.alarm-opt input:checked')].map(c=>parseInt(c.value));
+  
   const task={title,type,priority:$('taskPriority').value,assignee:$('taskAssignee').value,desc:$('taskDesc').value,time:$('taskTime').value,
     targetDate: $('taskDate').value,
+    alarms, // 신규: 알람 데이터 저장
     repeatDays:type==='recurring-weekly'?getSelDays():[],
     repeatDates:type==='recurring-monthly'?getSelDates():[],
     author: currentUser ? currentUser.email : ''};
+    
   if(editId){
     if(fbReady){await window._fb.updateDoc(getDoc('tasks', editId),task)}
     else{const idx=localTasks.findIndex(t=>(t.id||t._lid)===editId);if(idx>=0)localTasks[idx]={...localTasks[idx],...task};saveLocal();renderTasks();renderCal();renderWeekView();renderDayEvts()}
@@ -2077,9 +2114,10 @@ async function saveTask(){
   } else {
     if(fbReady){await window._fb.addDoc(getColl('tasks'),{...task,createdAt:window._fb.serverTimestamp()})}
     else{task._lid='t_'+Date.now();localTasks.push(task);saveLocal();renderTasks();renderCal();renderWeekView();renderDayEvts()}
+    if(alarms.length&&Notification.permission==='default')requestNotifPermission();
     showToast('업무 등록 ✓');
   }
-  closeModal('moAddTask');
+  updateAlarmPanel(); closeModal('moAddTask');
 }
 
 async function deleteTask(id){
