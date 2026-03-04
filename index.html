@@ -9,6 +9,13 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=Gowun+Dodum&display=swap" rel="stylesheet">
 
+<!-- 탭 브라우저(PC) 파비콘 -->
+<link rel="icon" type="image/png" href="./icon.png">
+<!-- 아이폰(iOS) 홈 화면 아이콘 -->
+<link rel="apple-touch-icon" href="./icon.png">
+<!-- 안드로이드 / 윈도우 PWA 웹 매니페스트 아이콘 색상 설정 -->
+<meta name="theme-color" content="#2563EB">
+  
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getFirestore, collection, addDoc, doc, updateDoc, deleteDoc, query, orderBy, onSnapshot, serverTimestamp, getDocs, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
