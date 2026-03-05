@@ -2031,10 +2031,15 @@ function renderTasks(){
           if (t.targetDate) {
              dateInfo = ` · 📅 ${t.type==='adhoc' ? '목표일:' : '시작일:'} ${t.targetDate}`;
           }
+          
+          // 신규: 완료 여부 판별 (수시는 목표일, 반복은 오늘 기준)
+          const checkDate = t.type === 'adhoc' ? (t.targetDate || fmtDate(new Date())) : fmtDate(new Date());
+          const isDone = t.completedDates && t.completedDates.includes(checkDate);
+
           return`<div class="rec-card" onclick="openTaskDetail('${tid}')">
           <div class="rec-icon ${iconCls[t.type]||'ic-adhoc'}">${typeIcon[t.type]||'⚡'}</div>
           <div class="rec-info">
-            <div class="rec-title">${t.title}${t.alarms&&t.alarms.length?'<span title="알람 설정됨" style="font-size:11px; margin-left:4px;">🔔</span>':''}</div>
+            <div class="rec-title${isDone ? ' done' : ''}">${t.title}${t.alarms&&t.alarms.length?'<span title="알람 설정됨" style="font-size:11px; margin-left:4px;">🔔</span>':''}</div>
             <div class="rec-meta">${typeLabel[t.type]}${t.time?' · ⏰ '+t.time:''}${dateInfo}${t.assignee?' · 👤 '+t.assignee:''}${t.desc?' · '+t.desc:''}</div>
             ${renderTaskRepeatInfo(t)}
             ${nc>0?`<div style="margin-top:6px"><span class="link-badge lb-task">📝 연결 노트 ${nc}개</span></div>`:''}
@@ -2047,10 +2052,16 @@ function renderTasks(){
   $('allTasksList').innerHTML=!localTasks.length
     ?'<div class="empty"><div class="ei">✅</div><p>업무 없음</p></div>'
     :localTasks.map(t=>{
+        const tid=t.id||t._lid;
         let dateInfo = '';
         if (t.targetDate) dateInfo = ` · 📅 ${t.type==='adhoc' ? '목표일:' : '시작일:'} ${t.targetDate}`;
-        return `<div class="task-item"><div class="t-check"></div>
-        <div class="t-body"><div class="t-title">${t.title}${t.alarms&&t.alarms.length?'<span title="알람 설정됨" style="font-size:11px; margin-left:4px;">🔔</span>':''}</div>
+        
+        // 신규: 체크박스와 연동될 완료 여부 판별
+        const checkDate = t.type === 'adhoc' ? (t.targetDate || fmtDate(new Date())) : fmtDate(new Date());
+        const isDone = t.completedDates && t.completedDates.includes(checkDate);
+
+        return `<div class="task-item"><div class="t-check${isDone ? ' done' : ''}" onclick="toggleTaskDone('${tid}', '${checkDate}')"></div>
+        <div class="t-body"><div class="t-title${isDone ? ' done' : ''}">${t.title}${t.alarms&&t.alarms.length?'<span title="알람 설정됨" style="font-size:11px; margin-left:4px;">🔔</span>':''}</div>
         <div class="t-meta">${typeIcon[t.type]} ${typeLabel[t.type]}${t.time?' · ⏰ '+t.time:''}${dateInfo}${t.assignee?' · 👤 '+t.assignee:''}${t.desc?' · '+t.desc:''}</div></div>
         ${ptag[t.priority]||''}</div>`}).join('');
 }
@@ -2138,7 +2149,7 @@ async function toggleTaskDone(tid, dateStr) {
   if (fbReady) {
     await window._fb.updateDoc(getDoc('tasks', tid), { completedDates: t.completedDates });
   } else {
-    saveLocal(); renderCal(); renderWeekView(); renderDayEvts();
+    saveLocal(); renderCal(); renderWeekView(); renderDayEvts(); renderTasks();
   }
 }
 
