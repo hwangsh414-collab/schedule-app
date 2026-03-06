@@ -482,17 +482,17 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
     <div class="sec-head"><div class="sec-title">업무 관리</div><button class="btn btn-p" onclick="openAddTask()">+ 새 업무</button></div>
     <div class="tasks-layout">
       <div>
-        <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">🔁 반복 업무</div>
+        <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">🔁 반복 업무 (진행중)</div>
         <div id="recurringList" style="display:flex;flex-direction:column;gap:8px"><div class="empty"><div class="ei">🔁</div><p>반복 업무 없음</p></div></div>
       </div>
       <div>
-        <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">⚡ 수시 업무</div>
+        <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">⚡ 수시 업무 (진행중)</div>
         <div id="adHocList" style="display:flex;flex-direction:column;gap:8px"><div class="empty"><div class="ei">⚡</div><p>수시 업무 없음</p></div></div>
       </div>
     </div>
     <div class="divider"></div>
-    <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">✅ 전체 업무 현황</div>
-    <div id="allTasksList" style="background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow);padding:4px 20px"><div class="empty"><div class="ei">✅</div><p>업무 없음</p></div></div>
+    <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">✅ 완료된 업무</div>
+    <div id="completedTasksList" style="background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow);padding:4px 20px"><div class="empty"><div class="ei">✅</div><p>완료된 업무 없음</p></div></div>
   </div>
 
   <!-- 노트 -->
@@ -2014,14 +2014,30 @@ function renderTaskRepeatInfo(t){
 }
 
 function renderTasks(){
-  const recurring=localTasks.filter(t=>t.type&&t.type.startsWith('recurring'));
-  const adhoc=localTasks.filter(t=>t.type==='adhoc');
+  const todayStr = fmtDate(new Date());
+  const activeRecurring = [];
+  const activeAdhoc = [];
+  const completedTasks = [];
+
+  // 진행 중 / 완료 상태 분류
+  localTasks.forEach(t => {
+      const checkDate = t.type === 'adhoc' ? (t.targetDate || todayStr) : todayStr;
+      const isDone = t.completedDates && t.completedDates.includes(checkDate);
+
+      if (isDone) {
+          completedTasks.push({task: t, checkDate: checkDate});
+      } else {
+          if (t.type && t.type.startsWith('recurring')) activeRecurring.push(t);
+          else if (t.type === 'adhoc') activeAdhoc.push(t);
+      }
+  });
+
   const typeIcon={'recurring-daily':'🔁','recurring-weekly':'📆','recurring-monthly':'🗓','adhoc':'⚡'};
   const typeLabel={'recurring-daily':'매일','recurring-weekly':'매주','recurring-monthly':'매월','adhoc':'수시'};
   const iconCls={'recurring-daily':'ic-daily','recurring-weekly':'ic-weekly','recurring-monthly':'ic-monthly','adhoc':'ic-adhoc'};
   const ptag={high:'<span class="tag tag-r">높음</span>',medium:'<span class="tag tag-a">보통</span>',low:'<span class="tag tag-g">낮음</span>'};
   
-  const renderList=(tasks,elId)=>{
+  const renderCardList=(tasks,elId)=>{
     $(elId).innerHTML=!tasks.length
       ?`<div class="empty"><div class="ei">${elId==='recurringList'?'🔁':'⚡'}</div><p>없음</p></div>`
       :tasks.map(t=>{
@@ -2032,38 +2048,44 @@ function renderTasks(){
              dateInfo = ` · 📅 ${t.type==='adhoc' ? '목표일:' : '시작일:'} ${t.targetDate}`;
           }
           
-          // 신규: 완료 여부 판별 (수시는 목표일, 반복은 오늘 기준)
-          const checkDate = t.type === 'adhoc' ? (t.targetDate || fmtDate(new Date())) : fmtDate(new Date());
-          const isDone = t.completedDates && t.completedDates.includes(checkDate);
+          const checkDate = t.type === 'adhoc' ? (t.targetDate || todayStr) : todayStr;
 
           return`<div class="rec-card" onclick="openTaskDetail('${tid}')">
           <div class="rec-icon ${iconCls[t.type]||'ic-adhoc'}">${typeIcon[t.type]||'⚡'}</div>
           <div class="rec-info">
-            <div class="rec-title${isDone ? ' done' : ''}">${t.title}${t.alarms&&t.alarms.length?'<span title="알람 설정됨" style="font-size:11px; margin-left:4px;">🔔</span>':''}</div>
+            <div class="rec-title">${t.title}${t.alarms&&t.alarms.length?'<span title="알람 설정됨" style="font-size:11px; margin-left:4px;">🔔</span>':''}</div>
             <div class="rec-meta">${typeLabel[t.type]}${t.time?' · ⏰ '+t.time:''}${dateInfo}${t.assignee?' · 👤 '+t.assignee:''}${t.desc?' · '+t.desc:''}</div>
             ${renderTaskRepeatInfo(t)}
             ${nc>0?`<div style="margin-top:6px"><span class="link-badge lb-task">📝 연결 노트 ${nc}개</span></div>`:''}
           </div>
-          <div style="display:flex;align-items:center;gap:6px">${ptag[t.priority]||''}
-            <button class="btn btn-ic btn-sm" style="color:var(--red)" onclick="event.stopPropagation();deleteTask('${tid}')">🗑</button>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:12px">
+            <div style="display:flex;align-items:center;gap:6px">${ptag[t.priority]||''}
+              <button class="btn btn-ic btn-sm" style="color:var(--red)" onclick="event.stopPropagation();deleteTask('${tid}')">🗑</button>
+            </div>
+            <button class="btn btn-s btn-sm" style="font-size:11px;padding:4px 8px;border-color:var(--green);color:var(--green)" onclick="event.stopPropagation();toggleTaskDone('${tid}', '${checkDate}')">✓ 완료하기</button>
           </div></div>`}).join('');
   };
-  renderList(recurring,'recurringList'); renderList(adhoc,'adHocList');
-  $('allTasksList').innerHTML=!localTasks.length
-    ?'<div class="empty"><div class="ei">✅</div><p>업무 없음</p></div>'
-    :localTasks.map(t=>{
+  
+  renderCardList(activeRecurring,'recurringList'); 
+  renderCardList(activeAdhoc,'adHocList');
+
+  // 하단 완료된 항목 리스트 렌더링
+  $('completedTasksList').innerHTML=!completedTasks.length
+    ?'<div class="empty"><div class="ei">✅</div><p>완료된 업무 없음</p></div>'
+    :completedTasks.map(item=>{
+        const t = item.task;
+        const checkDate = item.checkDate;
         const tid=t.id||t._lid;
         let dateInfo = '';
         if (t.targetDate) dateInfo = ` · 📅 ${t.type==='adhoc' ? '목표일:' : '시작일:'} ${t.targetDate}`;
-        
-        // 신규: 체크박스와 연동될 완료 여부 판별
-        const checkDate = t.type === 'adhoc' ? (t.targetDate || fmtDate(new Date())) : fmtDate(new Date());
-        const isDone = t.completedDates && t.completedDates.includes(checkDate);
 
-        return `<div class="task-item"><div class="t-check${isDone ? ' done' : ''}" onclick="toggleTaskDone('${tid}', '${checkDate}')"></div>
-        <div class="t-body"><div class="t-title${isDone ? ' done' : ''}">${t.title}${t.alarms&&t.alarms.length?'<span title="알람 설정됨" style="font-size:11px; margin-left:4px;">🔔</span>':''}</div>
+        return `<div class="task-item"><div class="t-check done" onclick="toggleTaskDone('${tid}', '${checkDate}')"></div>
+        <div class="t-body" style="cursor:pointer;" onclick="openTaskDetail('${tid}', '${checkDate}')"><div class="t-title done">${t.title}${t.alarms&&t.alarms.length?'<span title="알람 설정됨" style="font-size:11px; margin-left:4px;">🔔</span>':''}</div>
         <div class="t-meta">${typeIcon[t.type]} ${typeLabel[t.type]}${t.time?' · ⏰ '+t.time:''}${dateInfo}${t.assignee?' · 👤 '+t.assignee:''}${t.desc?' · '+t.desc:''}</div></div>
-        ${ptag[t.priority]||''}</div>`}).join('');
+        <div style="display:flex;align-items:center;gap:8px">
+          ${ptag[t.priority]||''}
+          <button class="btn btn-ic btn-sm" style="color:var(--red)" onclick="deleteTask('${tid}')">🗑</button>
+        </div></div>`}).join('');
 }
 
 function openAddTask(){
