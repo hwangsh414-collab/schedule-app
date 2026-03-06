@@ -483,7 +483,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
     <div class="sec-head"><div class="sec-title">업무 관리 <span id="taskTabDateLabel" style="font-size:13px;color:var(--accent);font-weight:600;margin-left:6px;"></span></div><button class="btn btn-p" onclick="openAddTask()">+ 새 업무</button></div>
     <div class="tasks-layout">
       <div>
-        <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">🔁 반복 업무 (진행중)</div>
+        <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">🔁 반복 업무</div>
         <div id="recurringList" style="display:flex;flex-direction:column;gap:8px"><div class="empty"><div class="ei">🔁</div><p>반복 업무 없음</p></div></div>
       </div>
       <div>
@@ -492,7 +492,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
       </div>
     </div>
     <div class="divider"></div>
-    <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">✅ 완료된 업무</div>
+    <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">✅ 완료된 수시 업무</div>
     <div id="completedTasksList" style="background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow);padding:4px 20px"><div class="empty"><div class="ei">✅</div><p>완료된 업무 없음</p></div></div>
   </div>
 
@@ -1154,20 +1154,17 @@ function startAlarmChecker(){
   alarmTimer=setInterval(checkAlarms,60000); 
 }
 
-// 특정 날짜에 알람이 울려야 할 모든 일정/업무 추출
 function getAlarmableItemsForDate(ds) {
     const items = [];
     
-    // 1. 일반/반복 일정 추출
-    getEventsForDate(ds).forEach(e => {
+    localEvents.forEach(e => {
         if(!e.alarms || e.alarms.length === 0) return;
         const isDone = (e.repeatType && e.repeatType !== 'none') ? (e.completedDates && e.completedDates.includes(ds)) : e.done;
         if(isDone) return;
         items.push({ id: e.id || e._lid, title: e.title, time: e.startTime || e.time || '09:00', alarms: e.alarms, date: ds });
     });
 
-    // 2. 수시/반복 업무 추출
-    getTasksForDate(ds).forEach(t => {
+    localTasks.forEach(t => {
         if(!t.alarms || t.alarms.length === 0) return;
         const isDone = t.type === 'adhoc' ? (t.completedDates && t.completedDates.length > 0) : (t.completedDates && t.completedDates.includes(ds));
         if(isDone) return;
@@ -1285,7 +1282,6 @@ function dismissAllAlarms(){
   $('alarmPanel').classList.remove('open'); 
   showToast('모든 알람이 해제되었습니다');
 }
-
 
 // ══════════════════════════════════════════════════════════════
 //  📅 캘린더 + D-day + 반복 업무 표시 + 주간 보기
@@ -1511,7 +1507,6 @@ function renderOverdueList() {
     </div>`;
   };
 
-  // 1. 기한 지난 일반/반복 일정
   localEvents.forEach(e => {
     const isRepeating = e.repeatType && e.repeatType !== 'none';
     if (!isRepeating) {
@@ -1536,7 +1531,6 @@ function renderOverdueList() {
     }
   });
 
-  // 2. 기한 지난 수시/반복 업무
   localTasks.forEach(t => {
     const isRepeating = t.type && t.type.startsWith('recurring');
     const sd = t.targetDate || t.startDate;
@@ -1574,7 +1568,7 @@ function selectDate(ds){
   if(calView==='month') renderCal();
   else renderWeekView();
   renderDayEvts();
-  renderTasks(); // 신규: 캘린더 날짜 변경 시 업무관리 탭도 즉시 동기화
+  renderTasks(); 
   $('selDateTitle').textContent=`${selDate.getMonth()+1}월 ${selDate.getDate()}일 일정`;
 }
 
@@ -1637,7 +1631,6 @@ function buildEvtDateBtns() {
   const c = $('evtMonthlyDates'); if (c.children.length) return;
   c.innerHTML = Array.from({length: 31}, (_, i) => `<button type="button" class="evt-date-btn date-btn" data-d="${i+1}" onclick="this.classList.toggle('sel')">${i+1}</button>`).join('');
 }
-// 신규: 셀렉터 범위를 각 모달 창 안으로 엄격하게 제한하여 중복 버그 방지
 function getSelEvtDays() { return [...document.querySelectorAll('#moAddEvent .evt-day-btn.sel')].map(b => parseInt(b.dataset.d)); }
 function getSelEvtDates() { return [...document.querySelectorAll('#moAddEvent .evt-date-btn.sel')].map(b => parseInt(b.dataset.d)); }
 
@@ -1655,7 +1648,6 @@ async function toggleEventDone(eid, dateStr) {
     e.done = !e.done;
   }
   
-  // 빠른 화면 갱신
   renderCal(); renderWeekView(); renderDayEvts(); renderOverdueList();
   
   if (fbReady) {
@@ -1690,9 +1682,9 @@ function openEventDetail(eid, ds){
   $('evtRepeatType').value = e.repeatType || 'none';
   onEvtRepeatChange(e.repeatType || 'none');
   
-  document.querySelectorAll('.evt-day-btn, .evt-date-btn').forEach(b => b.classList.remove('sel'));
-  if (e.repeatDays) document.querySelectorAll('.evt-day-btn').forEach(b => { if (e.repeatDays.includes(parseInt(b.dataset.d))) b.classList.add('sel'); });
-  if (e.repeatDates) document.querySelectorAll('.evt-date-btn').forEach(b => { if (e.repeatDates.includes(parseInt(b.dataset.d))) b.classList.add('sel'); });
+  document.querySelectorAll('#moAddEvent .evt-day-btn, #moAddEvent .evt-date-btn').forEach(b => b.classList.remove('sel'));
+  if (e.repeatDays) document.querySelectorAll('#moAddEvent .evt-day-btn').forEach(b => { if (e.repeatDays.includes(parseInt(b.dataset.d))) b.classList.add('sel'); });
+  if (e.repeatDates) document.querySelectorAll('#moAddEvent .evt-date-btn').forEach(b => { if (e.repeatDates.includes(parseInt(b.dataset.d))) b.classList.add('sel'); });
 
   const isDone = (e.repeatType && e.repeatType !== 'none') ? (e.completedDates && e.completedDates.includes(curEvtDate)) : e.done;
   if(isDone) $('evtDoneCheck').classList.add('done');
@@ -1721,9 +1713,8 @@ function openAddEvent(){
   
   $('evtRepeatType').value = 'none';
   onEvtRepeatChange('none');
-  document.querySelectorAll('.evt-day-btn, .evt-date-btn').forEach(b => b.classList.remove('sel'));
+  document.querySelectorAll('#moAddEvent .evt-day-btn, #moAddEvent .evt-date-btn').forEach(b => b.classList.remove('sel'));
   
-  // 알람 '10분 전' 자동 기본값 설정
   document.querySelectorAll('#moAddEvent .alarm-opt input').forEach(cb=>{
     cb.checked = (cb.value === '10'); 
     cb.closest('.alarm-opt').classList.toggle('sel', cb.checked);
@@ -2016,17 +2007,16 @@ function buildDateBtns(){
   c.innerHTML=Array.from({length:31},(_,i)=>`<button type="button" class="date-btn" data-d="${i+1}" onclick="this.classList.toggle('sel')">${i+1}</button>`).join('');
 }
 
-// 신규: 셀렉터 범위를 각 모달 창 안으로 엄격하게 제한하여 중복 버그 방지
 function getSelDays(){ return[...document.querySelectorAll('#moAddTask .day-btn.sel')].map(b=>parseInt(b.dataset.d)) }
 function getSelDates(){ return[...document.querySelectorAll('#moAddTask .date-btn.sel')].map(b=>parseInt(b.dataset.d)) }
 
-// 신규: 완료한 반복 업무의 '다음 예정일'을 계산하는 엔진
+// 다음 반복 예정일 계산 함수
 function getNextRepeatDate(t, baseDateStr) {
   if (!t.type || !t.type.startsWith('recurring')) return null;
   let d = new Date(baseDateStr + 'T00:00:00');
-  d.setDate(d.getDate() + 1); // 완료 기준일의 다음 날부터 스캔 시작
+  d.setDate(d.getDate() + 1); 
   
-  for (let i = 0; i < 730; i++) { // 최대 2년치 스캔
+  for (let i = 0; i < 730; i++) { 
     let matches = false;
     const dow = d.getDay();
     const dom = d.getDate();
@@ -2041,7 +2031,7 @@ function getNextRepeatDate(t, baseDateStr) {
   return null;
 }
 
-// 신규: 버그로 인해 잘못 저장된 요일/날짜 중복 데이터 필터링 기능 추가
+// 요일/날짜 중복 데이터 필터링 렌더링
 function renderTaskRepeatInfo(t){
   if(t.type==='recurring-weekly'&&t.repeatDays&&t.repeatDays.length){
     const uniqueDays = [...new Set(t.repeatDays)].sort((a,b)=>a-b);
@@ -2063,20 +2053,20 @@ function renderTasks(){
   const activeAdhoc = [];
   const completedTasks = [];
 
-  // 진행 중 / 완료 상태 분류
+  // 진행 중 / 완료 상태 분류 (반복 업무는 완료되어도 반복 섹션에 유지)
   localTasks.forEach(t => {
       const isAdhoc = t.type === 'adhoc';
       const checkDate = isAdhoc ? (t.targetDate || currentSelDateStr) : currentSelDateStr;
       
-      const isDone = isAdhoc 
-        ? (t.completedDates && t.completedDates.length > 0)
-        : (t.completedDates && t.completedDates.includes(checkDate));
-
-      if (isDone) {
-          completedTasks.push({task: t, checkDate: checkDate});
-      } else {
-          if (t.type && t.type.startsWith('recurring')) activeRecurring.push(t);
-          else if (isAdhoc) activeAdhoc.push(t);
+      if (t.type && t.type.startsWith('recurring')) {
+          activeRecurring.push(t); // 반복 업무는 무조건 반복 섹션으로
+      } else if (isAdhoc) {
+          const isDone = t.completedDates && t.completedDates.length > 0;
+          if (isDone) {
+              completedTasks.push({task: t, checkDate: checkDate});
+          } else {
+              activeAdhoc.push(t);
+          }
       }
   });
 
@@ -2091,17 +2081,31 @@ function renderTasks(){
       :tasks.map(t=>{
           const tid=t.id||t._lid;
           const nc=getLinkedNoteCount('task',tid);
+          const isAdhoc = t.type === 'adhoc';
+          const checkDate = isAdhoc ? (t.targetDate || currentSelDateStr) : currentSelDateStr;
+          const isDone = isAdhoc 
+            ? (t.completedDates && t.completedDates.length > 0)
+            : (t.completedDates && t.completedDates.includes(checkDate));
+
           let dateInfo = '';
           if (t.targetDate) {
-             dateInfo = ` · 📅 ${t.type==='adhoc' ? '목표일:' : '시작일:'} ${t.targetDate}`;
+             dateInfo = ` · 📅 ${isAdhoc ? '목표일:' : '시작일:'} ${t.targetDate}`;
           }
           
-          const checkDate = t.type === 'adhoc' ? (t.targetDate || currentSelDateStr) : currentSelDateStr;
+          if (isDone && !isAdhoc) {
+             const nextDate = getNextRepeatDate(t, checkDate);
+             if (nextDate) {
+                 dateInfo += ` · <strong style="color:var(--accent)">➡️ 다음 예정일: ${nextDate}</strong>`;
+             }
+          }
+
+          const btnText = isDone ? '✓ 완료 취소' : '✓ 완료하기';
+          const btnStyle = isDone ? 'color:var(--muted);border-color:var(--border);background:var(--surface2)' : 'color:var(--green);border-color:var(--green)';
 
           return`<div class="rec-card" onclick="openTaskDetail('${tid}')">
           <div class="rec-icon ${iconCls[t.type]||'ic-adhoc'}">${typeIcon[t.type]||'⚡'}</div>
           <div class="rec-info">
-            <div class="rec-title">${t.title}${t.alarms&&t.alarms.length?'<span title="알람 설정됨" style="font-size:11px; margin-left:4px;">🔔</span>':''}</div>
+            <div class="rec-title${isDone?' done':''}">${t.title}${t.alarms&&t.alarms.length?'<span title="알람 설정됨" style="font-size:11px; margin-left:4px;">🔔</span>':''}</div>
             <div class="rec-meta">${typeLabel[t.type]}${t.time?' · ⏰ '+t.time:''}${dateInfo}${t.assignee?' · 👤 '+t.assignee:''}${t.desc?' · '+t.desc:''}</div>
             ${renderTaskRepeatInfo(t)}
             ${nc>0?`<div style="margin-top:6px"><span class="link-badge lb-task">📝 연결 노트 ${nc}개</span></div>`:''}
@@ -2110,30 +2114,22 @@ function renderTasks(){
             <div style="display:flex;align-items:center;gap:6px">${ptag[t.priority]||''}
               <button class="btn btn-ic btn-sm" style="color:var(--red)" onclick="event.stopPropagation();deleteTask('${tid}')">🗑</button>
             </div>
-            <button class="btn btn-s btn-sm" style="font-size:11px;padding:4px 8px;border-color:var(--green);color:var(--green)" onclick="event.stopPropagation();toggleTaskDone('${tid}', '${checkDate}')">✓ 완료하기</button>
+            <button class="btn btn-s btn-sm" style="font-size:11px;padding:4px 8px;${btnStyle}" onclick="event.stopPropagation();toggleTaskDone('${tid}', '${checkDate}')">${btnText}</button>
           </div></div>`}).join('');
   };
   
   renderCardList(activeRecurring,'recurringList'); 
   renderCardList(activeAdhoc,'adHocList');
 
-  // 하단 완료된 항목 리스트 렌더링
+  // 하단 완료된 항목 리스트 렌더링 (수시 업무 전용)
   $('completedTasksList').innerHTML=!completedTasks.length
-    ?'<div class="empty"><div class="ei">✅</div><p>완료된 업무 없음</p></div>'
+    ?'<div class="empty"><div class="ei">✅</div><p>완료된 수시 업무 없음</p></div>'
     :completedTasks.map(item=>{
         const t = item.task;
         const checkDate = item.checkDate;
         const tid=t.id||t._lid;
         let dateInfo = '';
-        if (t.targetDate) dateInfo = ` · 📅 ${t.type==='adhoc' ? '목표일:' : '시작일:'} ${t.targetDate}`;
-        
-        // 신규: 반복 업무일 경우 다음 예정일 표시
-        if (t.type && t.type.startsWith('recurring')) {
-           const nextDate = getNextRepeatDate(t, checkDate);
-           if (nextDate) {
-               dateInfo += ` · <strong style="color:var(--accent)">➡️ 다음 예정일: ${nextDate}</strong>`;
-           }
-        }
+        if (t.targetDate) dateInfo = ` · 📅 목표일: ${t.targetDate}`;
 
         return `<div class="task-item"><div class="t-check done" onclick="toggleTaskDone('${tid}', '${checkDate}')"></div>
         <div class="t-body" style="cursor:pointer;" onclick="openTaskDetail('${tid}', '${checkDate}')"><div class="t-title done">${t.title}${t.alarms&&t.alarms.length?'<span title="알람 설정됨" style="font-size:11px; margin-left:4px;">🔔</span>':''}</div>
@@ -2149,7 +2145,7 @@ function openAddTask(){
   ['taskTitle','taskAssignee','taskDesc','taskTime'].forEach(id=>$(id).value='');
   $('taskDate').value = fmtDate(selDate); // 기본값: 캘린더 선택일
   $('taskType').value='recurring-weekly'; $('taskPriority').value='medium'; $('taskEditId').value='';
-  document.querySelectorAll('.day-btn, .date-btn').forEach(b=>b.classList.remove('sel'));
+  document.querySelectorAll('#moAddTask .day-btn, #moAddTask .date-btn').forEach(b=>b.classList.remove('sel'));
   $('monthlyDates').innerHTML=''; onTaskTypeChange('recurring-weekly');
   
   // 기본적으로 '10분 전' 알람 체크
@@ -2170,12 +2166,19 @@ function openEditTask(){
   $('taskType').value=t.type||'recurring-weekly'; $('taskPriority').value=t.priority||'medium';
   $('taskEditId').value=curTaskId;
   
-  document.querySelectorAll('.day-btn, .date-btn').forEach(b=>b.classList.remove('sel'));
+  document.querySelectorAll('#moAddTask .day-btn, #moAddTask .date-btn').forEach(b=>b.classList.remove('sel'));
   $('monthlyDates').innerHTML=''; onTaskTypeChange(t.type||'recurring-weekly');
-  if(t.repeatDays) document.querySelectorAll('.day-btn').forEach(b=>{ if(t.repeatDays.includes(parseInt(b.dataset.d))) b.classList.add('sel'); });
-  if(t.repeatDates) document.querySelectorAll('.date-btn').forEach(b=>{ if(t.repeatDates.includes(parseInt(b.dataset.d))) b.classList.add('sel'); });
   
-  // 알람 설정 복원
+  // 신규: 중복 요일/날짜 필터링을 반영하여 체크박스 복원
+  if(t.repeatDays) {
+    const uniqueDays = [...new Set(t.repeatDays)];
+    document.querySelectorAll('#moAddTask .day-btn').forEach(b=>{ if(uniqueDays.includes(parseInt(b.dataset.d))) b.classList.add('sel'); });
+  }
+  if(t.repeatDates) {
+    const uniqueDates = [...new Set(t.repeatDates)];
+    document.querySelectorAll('#moAddTask .date-btn').forEach(b=>{ if(uniqueDates.includes(parseInt(b.dataset.d))) b.classList.add('sel'); });
+  }
+  
   document.querySelectorAll('#moAddTask .alarm-opt input').forEach(cb=>{
     cb.checked=t.alarms&&t.alarms.includes(parseInt(cb.value));
     cb.closest('.alarm-opt').classList.toggle('sel',cb.checked);
@@ -2189,11 +2192,15 @@ async function saveTask(){
   const type=$('taskType').value; const editId=$('taskEditId').value;
   const alarms=[...$('moAddTask').querySelectorAll('.alarm-opt input:checked')].map(c=>parseInt(c.value));
   
+  // 신규: 저장할 때 중복되는 요일과 날짜를 제거 (방어 코드)
+  const safeDays = type==='recurring-weekly' ? [...new Set(getSelDays())] : [];
+  const safeDates = type==='recurring-monthly' ? [...new Set(getSelDates())] : [];
+
   const task={title,type,priority:$('taskPriority').value,assignee:$('taskAssignee').value,desc:$('taskDesc').value,time:$('taskTime').value,
     targetDate: $('taskDate').value,
-    alarms, // 신규: 알람 데이터 저장
-    repeatDays:type==='recurring-weekly'?getSelDays():[],
-    repeatDates:type==='recurring-monthly'?getSelDates():[],
+    alarms, 
+    repeatDays: safeDays,
+    repeatDates: safeDates,
     author: currentUser ? currentUser.email : ''};
     
   if(editId){
@@ -2222,20 +2229,17 @@ async function toggleTaskDone(tid, dateStr) {
   if (!t.completedDates) t.completedDates = [];
   
   if (t.type === 'adhoc') {
-    // 수시 업무는 언제 어디서 클릭하든 한 번 체크되면 전체 체크 처리
     if (t.completedDates.length > 0) {
       t.completedDates = []; 
     } else {
       t.completedDates = [dateStr]; 
     }
   } else {
-    // 반복 업무는 해당 날짜 기준으로 체크 토글
     const idx = t.completedDates.indexOf(dateStr);
     if (idx > -1) t.completedDates.splice(idx, 1);
     else t.completedDates.push(dateStr);
   }
   
-  // 빠른 화면 갱신(Optimistic UI)
   renderCal(); renderWeekView(); renderDayEvts(); renderTasks(); renderOverdueList();
   
   if (fbReady) {
@@ -2273,7 +2277,6 @@ function openTaskDetail(tid, dateStr){
   if(t.time) meta+=` · ⏰ ${t.time}`;
   if(t.targetDate) meta+=` · 📅 ${t.type==='adhoc'?'목표일':'시작일'}: ${t.targetDate}`;
   
-  // 신규: 상세 정보에서도 다음 예정일 표시
   if (isDone && t.type && t.type.startsWith('recurring')) {
       const nextDate = getNextRepeatDate(t, curTaskDate);
       if (nextDate) meta += ` · <strong style="color:var(--accent)">➡️ 다음 예정일: ${nextDate}</strong>`;
