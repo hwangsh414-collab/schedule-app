@@ -139,7 +139,8 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
 .cal-month{font-size:18px;font-weight:700}
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr)}
 .cal-wd{text-align:center;padding:10px 4px;font-size:11px;font-weight:700;color:var(--muted);border-bottom:1px solid var(--border)}
-.cal-day{min-height:88px;padding:6px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s;position:relative}
+/* 📌 신규: 캘린더 칸 최소 높이 증가 (88px -> 130px) */
+.cal-day{min-height:130px;padding:6px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s;position:relative}
 .cal-day:hover{background:var(--surface2)}
 .cal-day.other .cal-dn{color:#C0BAB2}
 .cal-day.today .cal-dn{background:var(--accent);color:#fff;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center}
@@ -152,9 +153,9 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
 .cev.deadline{background:var(--red-l);color:var(--red)}
 .cev.reminder{background:var(--warn-l);color:var(--warn)}
 .cev.recurring{background:#F5F3FF;color:var(--purple);font-style:italic}
-.cev.adhoc { background: #FFF7ED; color: #EA580C; } /* 신규: 수시업무 캘린더 표시색 */
-.cev.project { background: #EFF6FF; color: #1D4ED8; font-weight: 600; border-left: 2px solid #1D4ED8; } /* 신규: 프로젝트 캘린더 표시색 */
-.cev.subtask { background: #F3F4F6; color: #4B5563; border-left: 2px solid #9CA3AF; } /* 신규: 세부업무 캘린더 표시색 */
+.cev.adhoc { background: #FFF7ED; color: #EA580C; }
+.cev.project { font-weight: 600; border-left: 2px solid transparent; } /* 인라인 스타일로 색상 대체됨 */
+.cev.subtask { background: #F3F4F6; color: #4B5563; border-left: 2px solid transparent; } /* 인라인 스타일로 테두리색 대체됨 */
 .cev.has-alarm::before{content:'🔔';font-size:8px;margin-right:2px}
 .cev.more{background:var(--surface2);color:var(--muted)}
 .cev.done, .wv-evt.done { text-decoration: line-through; opacity: 0.5; }
@@ -179,9 +180,9 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
 .evt-item.deadline{border-color:var(--red)}
 .evt-item.reminder{border-color:var(--warn)}
 .evt-item.recurring-task{border-color:var(--purple);border-style:dashed}
-.evt-item.adhoc-task{border-color:#EA580C;background:#FFF7ED;} /* 신규 */
-.evt-item.project{border-color:#1D4ED8;background:#EFF6FF;} /* 신규 */
-.evt-item.subtask{border-color:#9CA3AF;background:#F3F4F6;} /* 신규 */
+.evt-item.adhoc-task{border-color:#EA580C;background:#FFF7ED;}
+.evt-item.project{border-left-width: 4px; border-color:#1D4ED8;background:#EFF6FF;} /* 인라인 스타일로 덮어쓰기됨 */
+.evt-item.subtask{border-left-style: dashed; border-color:#9CA3AF;background:#F3F4F6;} /* 인라인 스타일로 테두리색 덮어쓰기됨 */
 
 /* ── Weekly View ── */
 .week-view{background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow);overflow:auto}
@@ -205,7 +206,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
 
 /* ── Projects ── */
 .proj-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px}
-.proj-card{background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden;cursor:pointer;transition:all .2s}
+.proj-card{background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden;cursor:pointer;transition:all .2s; border-top: 4px solid var(--accent); }
 .proj-card:hover{transform:translateY(-2px);box-shadow:var(--shadow-md)}
 .pc-body{padding:20px}
 .pc-title{font-size:16px;font-weight:700}
@@ -632,11 +633,23 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
         <div class="fg"><label class="fl">시작일</label><input class="fi" type="date" id="projStart"></div>
         <div class="fg"><label class="fl">종료일</label><input class="fi" type="date" id="projEnd"></div>
       </div>
-      <div class="fg"><label class="fl">상태</label>
-        <select class="fs" id="projStatus">
-          <option value="active">진행중</option><option value="planning">계획중</option>
-          <option value="completed">완료</option><option value="hold">보류</option>
-        </select>
+      <div class="fr">
+        <div class="fg"><label class="fl">상태</label>
+          <select class="fs" id="projStatus">
+            <option value="active">진행중</option><option value="planning">계획중</option>
+            <option value="completed">완료</option><option value="hold">보류</option>
+          </select>
+        </div>
+        <div class="fg"><label class="fl">테마 색상</label>
+          <select class="fs" id="projColor">
+            <option value="blue">🔵 파랑</option>
+            <option value="green">🟢 초록</option>
+            <option value="purple">🟣 보라</option>
+            <option value="orange">🟠 주황</option>
+            <option value="pink">🌸 분홍</option>
+            <option value="teal">🌊 청록</option>
+          </select>
+        </div>
       </div>
       <input type="hidden" id="projEditId">
       <div class="fa">
@@ -790,7 +803,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
       <div class="fg"><label class="fl">담당자</label><input class="fi" id="taskAssignee" placeholder="담당자 (선택)"></div>
       <div class="fg"><label class="fl">설명</label><textarea class="fta" id="taskDesc" placeholder="업무 설명 (선택)" style="min-height:60px"></textarea></div>
       
-      <!-- 신규: 업무도 알람 설정 가능 -->
+      <!-- 업무도 알람 설정 가능 -->
       <div class="alarm-box">
         <label class="fl" style="color:var(--warn)">🔔 알람 설정</label>
         <div style="font-size:12px;color:var(--muted)">알람 시점 선택 (목표/시작 시간 기준, 시간 미지정 시 오전 9시 기준)</div>
@@ -915,6 +928,16 @@ document.querySelectorAll('.mo').forEach(o=>o.addEventListener('click',e=>{if(e.
 function showToast(msg){ const t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),3100) }
 const DAY_KR=['일','월','화','수','목','금','토'];
 const COLOR_LBL={yellow:'노랑',blue:'파랑',green:'초록',red:'빨강',purple:'보라'};
+
+// 📌 프로젝트 테마 색상 팔레트 정의
+const PROJ_COLORS = {
+  blue: { bg: '#EFF6FF', text: '#1D4ED8' },
+  green: { bg: '#ECFDF5', text: '#059669' },
+  purple: { bg: '#F5F3FF', text: '#7C3AED' },
+  orange: { bg: '#FFF7ED', text: '#EA580C' },
+  pink: { bg: '#FDF2F8', text: '#DB2777' },
+  teal: { bg: '#F0FDFA', text: '#0D9488' }
+};
 
 function addPrefix(inputId, prefix) {
   const el = $(inputId);
@@ -1050,7 +1073,7 @@ function initDataListeners() {
     localEvents = s.docs.map(d=>({id:d.id, ...d.data()})); saveLocal(); renderCal(); renderWeekView(); renderDayEvts(); updateAlarmPanel();
   });
   unsubProjects = onSnapshot(query(getColl('projects'), orderBy('createdAt')), s => {
-    localProjects = s.docs.map(d=>({id:d.id, ...d.data()})); saveLocal(); renderProjects(); updateEvtProjSel();
+    localProjects = s.docs.map(d=>({id:d.id, ...d.data()})); saveLocal(); renderProjects(); updateEvtProjSel(); renderCal(); renderWeekView(); renderDayEvts();
   });
   unsubTasks = onSnapshot(query(getColl('tasks'), orderBy('createdAt')), s => {
     localTasks = s.docs.map(d=>({id:d.id, ...d.data()})); saveLocal(); renderTasks(); renderCal(); renderWeekView(); renderDayEvts();
@@ -1327,7 +1350,7 @@ function getTasksForDate(ds){
   });
 }
 
-// 📌 신규: 캘린더 표시용 프로젝트 추출
+// 📌 프로젝트 추출
 function getProjectsForDate(ds) {
     return localProjects.filter(p => {
         if (!p.startDate) return false;
@@ -1337,7 +1360,7 @@ function getProjectsForDate(ds) {
     });
 }
 
-// 📌 신규: 캘린더 표시용 프로젝트 세부 업무 추출
+// 📌 프로젝트 세부 업무 추출
 function getProjectSubtasksForDate(ds) {
     let tasks = [];
     localProjects.forEach(p => {
@@ -1347,14 +1370,13 @@ function getProjectSubtasksForDate(ds) {
             const s = st.start || st.due;
             const e = st.due || st.start;
             if (s && ds >= s && ds <= e) {
-                tasks.push({ ...st, projectId: pid, projectName: p.name, stIdx: idx });
+                tasks.push({ ...st, projectId: pid, projectName: p.name, projectColor: p.color || 'blue', stIdx: idx });
             }
         });
     });
     return tasks;
 }
 
-// 📌 신규: 프로젝트 세부 업무 완료 토글 (전역 함수)
 window.toggleSubtaskDone = function(pid, idx) {
     const tasks = getSubtasks(pid);
     if (tasks[idx]) {
@@ -1414,9 +1436,11 @@ function renderCal(){
     const devts = getEventsForDate(ds);
     const dayTasks = getTasksForDate(ds);
     
-    // 프로젝트 -> 이벤트 -> 업무 -> 세부업무 순으로 표시
     const allItems=[
-      ...dayProjects.map(p => `<div class="cev project" onclick="event.stopPropagation();openProjDetail('${p.id||p._lid}')">📁 ${p.name}</div>`),
+      ...dayProjects.map(p => {
+          const c = PROJ_COLORS[p.color || 'blue'];
+          return `<div class="cev project" style="background:${c.bg}; color:${c.text}; border-left:2px solid ${c.text};" onclick="event.stopPropagation();openProjDetail('${p.id||p._lid}')">📁 ${p.name}</div>`;
+      }),
       ...devts.map(e=>{
         const dd=e.type==='deadline'?getDday(e.date):null;
         const ddLabel=dd?`<span class="dday ${dd.cls}" style="font-size:9px;padding:0 3px;border-radius:6px">${dd.label}</span>`:'';
@@ -1431,11 +1455,15 @@ function renderCal(){
         const cls = isAdhoc ? 'adhoc' : 'recurring';
         return `<div class="cev ${cls}${isDone?' done':''}" onclick="event.stopPropagation();openTaskDetail('${t.id||t._lid}', '${ds}')">${t.time?'⏰':''} ${icon} ${t.title}</div>`;
       }),
-      ...daySubtasks.map(st => `<div class="cev subtask${st.done?' done':''}" onclick="event.stopPropagation();openProjDetail('${st.projectId}')">↳ ${st.title}</div>`)
+      ...daySubtasks.map(st => {
+          const c = PROJ_COLORS[st.projectColor || 'blue'];
+          return `<div class="cev subtask${st.done?' done':''}" style="border-left:2px solid ${c.text};" onclick="event.stopPropagation();openProjDetail('${st.projectId}')">↳ ${st.title}</div>`;
+      })
     ];
     
-    const visible=allItems.slice(0,3);
-    const more=allItems.length>3?`<div class="cev more">+${allItems.length-3}</div>`:'';
+    // 높이 증가로 4개까지 표시
+    const visible=allItems.slice(0,4);
+    const more=allItems.length>4?`<div class="cev more">+${allItems.length-4}</div>`:'';
     html+=`<div class="cal-day${other?' other':''}${isToday?' today':''}${isSel?' sel':''}" onclick="selectDate('${ds}')">
       <div class="cal-dn">${day}</div><div class="cal-dots">${visible.join('')}${more}</div></div>`;
   }
@@ -1459,7 +1487,7 @@ function renderWeekView(){
   });
   html+=`</div>`;
 
-  // 종일 영역 (시간 없는 항목들)
+  // 종일 영역
   html+=`<div class="wv-allday"><div class="wv-al-lbl">종일</div>`;
   days.forEach(d=>{
     const ds=fmtDate(d);
@@ -1470,7 +1498,8 @@ function renderWeekView(){
     
     html+=`<div class="wv-al-cell">`;
     dayProjects.forEach(p => {
-       html+=`<div class="cev project" style="font-size:10px" onclick="openProjDetail('${p.id||p._lid}')">📁 ${p.name}</div>`;
+       const c = PROJ_COLORS[p.color || 'blue'];
+       html+=`<div class="cev project" style="font-size:10px; background:${c.bg}; color:${c.text}; border-left:2px solid ${c.text};" onclick="openProjDetail('${p.id||p._lid}')">📁 ${p.name}</div>`;
     });
     noTimeEvts.forEach(e=>{
       const dd=e.type==='deadline'?getDday(ds):null;
@@ -1487,7 +1516,8 @@ function renderWeekView(){
       html+=`<div class="cev ${cls}${isDone?' done':''}" style="font-size:10px" onclick="openTaskDetail('${t.id||t._lid}', '${ds}')">${icon} ${t.title}</div>`;
     });
     daySubtasks.forEach(st => {
-       html+=`<div class="cev subtask${st.done?' done':''}" style="font-size:10px" onclick="openProjDetail('${st.projectId}')">↳ ${st.title}</div>`;
+       const c = PROJ_COLORS[st.projectColor || 'blue'];
+       html+=`<div class="cev subtask${st.done?' done':''}" style="font-size:10px; border-left:2px solid ${c.text};" onclick="openProjDetail('${st.projectId}')">↳ ${st.title}</div>`;
     });
     html+=`</div>`;
   });
@@ -1615,7 +1645,6 @@ function renderOverdueList() {
     }
   });
 
-  // 프로젝트 세부 업무도 지연 항목으로 검사
   localProjects.forEach(p => {
       const pid = p.id || p._lid;
       const subtasks = JSON.parse(localStorage.getItem('st_' + pid) || '[]');
@@ -1650,18 +1679,17 @@ function renderDayEvts(){
 
   let html='';
   
-  // 프로젝트 표시
   dayProjects.forEach(p => {
-     html += `<div class="evt-item project" style="display:flex; align-items:flex-start; gap:10px; cursor:pointer;" onclick="openProjDetail('${p.id||p._lid}')">
+     const c = PROJ_COLORS[p.color || 'blue'];
+     html += `<div class="evt-item project" style="display:flex; align-items:flex-start; gap:10px; cursor:pointer; border-color:${c.text}; background:${c.bg};" onclick="openProjDetail('${p.id||p._lid}')">
         <div class="t-check" style="opacity:0; pointer-events:none; cursor:default;"></div>
         <div style="flex:1">
-           <div style="font-size:13px;font-weight:700;color:#1D4ED8;">📁 ${p.name}</div>
+           <div style="font-size:13px;font-weight:700;color:${c.text};">📁 ${p.name}</div>
            <div style="font-size:11px;color:var(--muted);margin-top:4px">프로젝트 일정 · ${p.startDate} ~ ${p.endDate||''}</div>
         </div>
      </div>`;
   });
 
-  // 일반 이벤트 표시
   evts.forEach(e=>{
     const eid=e.id||e._lid;
     const dd=e.type==='deadline'?getDday(e.date):null;
@@ -1681,7 +1709,6 @@ function renderDayEvts(){
     </div>`;
   });
   
-  // 업무 표시
   dayTasks.forEach(t=>{
     const tid=t.id||t._lid;
     const isAdhoc = t.type === 'adhoc';
@@ -1697,9 +1724,9 @@ function renderDayEvts(){
     </div>`;
   });
 
-  // 세부 업무 표시
   daySubtasks.forEach(st => {
-     html += `<div class="evt-item subtask" style="display:flex; align-items:flex-start; gap:10px; cursor:pointer;" onclick="openProjDetail('${st.projectId}')">
+     const c = PROJ_COLORS[st.projectColor || 'blue'];
+     html += `<div class="evt-item subtask" style="display:flex; align-items:flex-start; gap:10px; cursor:pointer; border-color:${c.text};" onclick="openProjDetail('${st.projectId}')">
         <div class="t-check${st.done?' done':''}" style="margin-top:2px;" onclick="event.stopPropagation(); toggleSubtaskDone('${st.projectId}', ${st.stIdx})"></div>
         <div style="flex:1">
            <div style="font-size:13px;font-weight:500;${st.done?'text-decoration:line-through;color:var(--muted)':''}">↳ ${st.title}</div>
@@ -1889,15 +1916,16 @@ function renderProjects(){
   if(!localProjects.length){g.innerHTML='<div class="empty" style="grid-column:1/-1"><div class="ei">📁</div><p>프로젝트가 없습니다</p></div>';return}
   g.innerHTML=localProjects.map(p=>{
     const pid=p.id||p._lid;
+    const c = PROJ_COLORS[p.color || 'blue'];
     let projDday='';
     if(p.endDate){ const dd=getDday(p.endDate); projDday=`<span class="dday ${dd.cls}" style="margin-left:6px">${dd.label}</span>`; }
-    return`<div class="proj-card" onclick="openProjDetail('${pid}')">
+    return`<div class="proj-card" style="border-top: 4px solid ${c.text};" onclick="openProjDetail('${pid}')">
       <div class="pc-body">
         <div style="display:flex;align-items:center;justify-content:space-between">
           <div style="display:flex;align-items:center">${statusTag[p.status]||''}</div>
           <button class="btn btn-ic btn-sm" style="font-size:12px" onclick="event.stopPropagation();openEditProjectById('${pid}')">✏️</button>
         </div>
-        <div class="pc-title" style="margin-top:8px">${p.name}</div>
+        <div class="pc-title" style="margin-top:8px; color:${c.text};">${p.name}</div>
         <div class="pc-desc">${p.desc||''}</div>
         <div class="pc-bar"><div class="pc-fill" style="width:0%"></div></div>
         <div class="pc-stats"><span>📋 세부업무 ${getStCount(pid)}개</span><span>📝 회의 ${getMtCount(pid)}개</span><span>🔗 노트 ${getLinkedNoteCount('project',pid)}개</span></div>
@@ -1915,6 +1943,7 @@ function openAddProject(){
   $('projModalTitle').textContent='새 프로젝트';
   ['projName','projDesc','projEnd'].forEach(id=>$(id).value='');
   $('projStart').value=fmtDate(new Date()); $('projStatus').value='active'; $('projEditId').value='';
+  $('projColor').value='blue';
   $('projDelBtn').style.display='none';
   openModal('moAddProject');
 }
@@ -1925,12 +1954,16 @@ function openEditProjectById(pid){
   $('projName').value=p.name||''; $('projDesc').value=p.desc||'';
   $('projStart').value=p.startDate||''; $('projEnd').value=p.endDate||'';
   $('projStatus').value=p.status||'active'; $('projEditId').value=pid;
+  $('projColor').value=p.color||'blue';
   $('projDelBtn').style.display='inline-flex';
   closeModal('moProjDetail'); openModal('moAddProject');
 }
 async function saveProject(){
   const name=$('projName').value.trim(); if(!name){showToast('프로젝트명을 입력해 주세요');return}
-  const proj={name,desc:$('projDesc').value,startDate:$('projStart').value,endDate:$('projEnd').value,status:$('projStatus').value, author: currentUser ? currentUser.email : ''};
+  const proj={
+    name,desc:$('projDesc').value,startDate:$('projStart').value,endDate:$('projEnd').value,
+    status:$('projStatus').value, color:$('projColor').value, author: currentUser ? currentUser.email : ''
+  };
   const editId=$('projEditId').value;
   if(editId){
     if(fbReady){await window._fb.updateDoc(getDoc('projects', editId),proj)}
@@ -2011,6 +2044,7 @@ function saveSubtask(){
   const data = {title:t,assignee:$('stAssignee').value,start:$('stStart').value,due:$('stDue').value,priority:$('stPriority').value,done:curStEditIdx>=0?tasks[curStEditIdx].done:false};
   if(curStEditIdx >= 0) tasks[curStEditIdx] = data; else tasks.push(data);
   setSubtasks(curProjId,tasks);$('addStForm').style.display='none';renderSubtasks();
+  renderCal(); renderWeekView(); renderDayEvts(); // 신규: 저장 즉시 캘린더 동기화
   showToast(curStEditIdx>=0?'세부 업무 수정 ✓':'세부 업무 추가 ✓');
 }
 function toggleSt(i){
