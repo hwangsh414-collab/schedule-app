@@ -1182,18 +1182,23 @@ function startAlarmChecker(){
 
 function getAlarmableItemsForDate(ds) {
     const items = [];
-    localEvents.forEach(e => {
+    
+    // 수정됨: 전체 목록(localEvents)이 아닌 해당 날짜(ds)에 배정된 '일정'만 불러와서 알람 검사
+    getEventsForDate(ds).forEach(e => {
         if(!e.alarms || e.alarms.length === 0) return;
         const isDone = (e.repeatType && e.repeatType !== 'none') ? (e.completedDates && e.completedDates.includes(ds)) : e.done;
         if(isDone) return;
         items.push({ id: e.id || e._lid, title: e.title, time: e.startTime || e.time || '09:00', alarms: e.alarms, date: ds });
     });
-    localTasks.forEach(t => {
+    
+    // 수정됨: 전체 목록(localTasks)이 아닌 해당 날짜(ds)에 배정된 '업무'만 불러와서 알람 검사
+    getTasksForDate(ds).forEach(t => {
         if(!t.alarms || t.alarms.length === 0) return;
         const isDone = t.type === 'adhoc' ? (t.completedDates && t.completedDates.length > 0) : (t.completedDates && t.completedDates.includes(ds));
         if(isDone) return;
         items.push({ id: t.id || t._lid, title: t.title, time: t.time || '09:00', alarms: t.alarms, date: ds });
     });
+    
     return items;
 }
 
