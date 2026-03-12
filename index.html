@@ -12,6 +12,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=Gowun+Dodum&display=swap" rel="stylesheet">
 
+<!-- 📌 신규: Quill Rich Text Editor 라이브러리 추가 -->
+<link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+<script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
+
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getFirestore, collection, addDoc, doc, updateDoc, deleteDoc, query, orderBy, onSnapshot, serverTimestamp, getDocs, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
@@ -330,6 +334,22 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
 /* Scroll UI tweaks */
 #dayEvtList { max-height: 400px; overflow-y: auto; }
 #overdueList { max-height: 300px; overflow-y: auto; }
+
+/* ── Rich Text & Quill Overrides ── */
+.ql-toolbar.ql-snow { border-color: var(--border) !important; border-top-left-radius: var(--rs); border-top-right-radius: var(--rs); background: var(--surface2); padding: 8px !important; font-family: inherit; }
+.ql-container.ql-snow { border-color: var(--border) !important; border-bottom-left-radius: var(--rs); border-bottom-right-radius: var(--rs); background: var(--surface); font-family: inherit !important; font-size: 14px !important; }
+.ql-editor { min-height: 160px; line-height: 1.6; }
+.ql-editor p { margin-bottom: 6px; }
+
+.rich-text { font-size: 14px; line-height: 1.6; color: var(--text); word-break: break-word; }
+.rich-text h1 { font-size: 1.6em; font-weight: bold; margin: 16px 0 8px; }
+.rich-text h2 { font-size: 1.4em; font-weight: bold; margin: 14px 0 8px; }
+.rich-text h3 { font-size: 1.2em; font-weight: bold; margin: 12px 0 6px; }
+.rich-text p { margin-bottom: 8px; }
+.rich-text p:last-child { margin-bottom: 0; }
+.rich-text ul { list-style-type: disc; padding-left: 24px; margin-bottom: 12px; }
+.rich-text ol { list-style-type: decimal; padding-left: 24px; margin-bottom: 12px; }
+.rich-text a { color: var(--accent); text-decoration: underline; }
 
 /* ── Responsive ── */
 @media(max-width:768px){
@@ -729,8 +749,12 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
         <div id="projNoteList"></div>
         <div id="addPnForm" style="display:none;background:var(--surface2);border-radius:var(--rs);padding:16px;margin-top:12px">
           <div class="fg" style="margin-bottom:10px"><label class="fl">제목</label><input class="fi" id="pnTitle" placeholder="제목 (선택)"></div>
-          <div class="fg" style="margin-bottom:10px"><label class="fl">내용</label><textarea class="fta" id="pnContent" placeholder="메모 내용" style="min-height:120px"></textarea></div>
-          <div style="display:flex;gap:8px;justify-content:flex-end">
+          <div class="fg" style="margin-bottom:10px">
+            <label class="fl">내용</label>
+            <!-- 📌 신규: 리치 텍스트 에디터 연결 컨테이너 (프로젝트 메모용) -->
+            <div id="projNoteEditor"></div>
+          </div>
+          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px;">
             <button class="btn btn-s btn-sm" onclick="$('addPnForm').style.display='none'">취소</button>
             <button class="btn btn-p btn-sm" onclick="saveProjNote()">저장</button>
           </div>
@@ -864,12 +888,17 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
 
 <!-- Note Add/Edit Modal -->
 <div class="mo" id="moNote">
-  <div class="modal" style="max-width:540px">
+  <!-- 📌 신규: 툴바 표시를 위해 모달 너비 약간 넓힘 -->
+  <div class="modal" style="max-width:600px">
     <div class="mh"><div style="font-size:16px;font-weight:700" id="noteMoTitle">새 노트</div><button class="btn btn-ic btn-sm" onclick="closeModal('moNote')">✕</button></div>
     <div style="padding:20px 24px">
       <div class="fg"><label class="fl">제목</label><input class="fi" id="noteTitle" placeholder="노트 제목"></div>
-      <div class="fg"><label class="fl">내용</label><textarea class="fta" id="noteContent" placeholder="노트 내용을 입력하세요" style="min-height:140px"></textarea></div>
-      <div class="fr">
+      <div class="fg">
+        <label class="fl">내용</label>
+        <!-- 📌 신규: 리치 텍스트 에디터 연결 컨테이너 (일반 노트용) -->
+        <div id="noteEditor"></div>
+      </div>
+      <div class="fr" style="margin-top:10px;">
         <div class="fg"><label class="fl">색상</label>
           <select class="fs" id="noteColor">
             <option value="yellow">🟡 노랑</option><option value="blue">🔵 파랑</option>
@@ -911,7 +940,8 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
         <button class="btn btn-ic btn-sm" onclick="closeModal('moNoteDetail')">✕</button>
       </div>
     </div>
-    <div style="padding:20px 24px;font-size:14px;line-height:1.9;white-space:pre-wrap;min-height:100px;max-height:55vh;overflow-y:auto" id="ndContent"></div>
+    <!-- 📌 신규: 클래스에 rich-text 추가하여 에디터 서식 반영 -->
+    <div style="padding:20px 24px;min-height:100px;max-height:55vh;overflow-y:auto" id="ndContent" class="rich-text"></div>
     <div style="padding:12px 24px;border-top:1px solid var(--border);font-size:11px;color:var(--muted)" id="ndMeta"></div>
   </div>
 </div>
@@ -928,7 +958,6 @@ function showToast(msg){ const t=document.createElement('div');t.className='toas
 const DAY_KR=['일','월','화','수','목','금','토'];
 const COLOR_LBL={yellow:'노랑',blue:'파랑',green:'초록',red:'빨강',purple:'보라'};
 
-// 📌 프로젝트 테마 색상 팔레트 정의
 const PROJ_COLORS = {
   blue: { bg: '#EFF6FF', text: '#1D4ED8' },
   green: { bg: '#ECFDF5', text: '#059669' },
@@ -943,6 +972,13 @@ function addPrefix(inputId, prefix) {
   if (!el.value.startsWith(prefix)) {
     el.value = prefix + ' ' + el.value.replace(/^\[.*?\]\s*/, '');
   }
+}
+
+// 📌 신규: 과거에 저장된 평문 줄바꿈 노트를 HTML로 안전하게 변환하는 헬퍼 함수
+function formatContent(content) {
+  if (!content) return '';
+  if (content.includes('<p>') || content.includes('<br>') || content.includes('<ul>')) return content;
+  return content.replace(/\n/g, '<br>');
 }
 
 // ── State ─────────────────────────────────────────────────────
@@ -966,6 +1002,24 @@ let dismissed = JSON.parse(localStorage.getItem('fd')||'[]');
 let isAppAlarmOn = localStorage.getItem('appAlarmOn') !== 'false';
 
 let unsubEvents, unsubProjects, unsubTasks, unsubNotes;
+
+// 📌 신규: Quill 에디터 객체 초기화 (공통 설정)
+const quillConfig = {
+  theme: 'snow',
+  modules: {
+    toolbar: [
+      [{ 'header': [1, 2, 3, false] }],
+      ['bold', 'italic', 'underline', 'strike'],
+      [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+      [{ 'color': [] }, { 'background': [] }],
+      ['clean']
+    ]
+  }
+};
+
+const quillNote = new Quill('#noteEditor', Object.assign({placeholder: '노트 내용을 작성하세요...'}, quillConfig));
+const quillProjNote = new Quill('#projNoteEditor', Object.assign({placeholder: '메모 내용을 작성하세요...'}, quillConfig));
+
 
 const getColl = (name) => IS_TEAM_SHARED ? window._fb.collection(window._db, name) : window._fb.collection(window._db, `users/${currentUser.uid}/${name}`);
 const getDoc = (name, id) => IS_TEAM_SHARED ? window._fb.doc(window._db, name, id) : window._fb.doc(window._db, `users/${currentUser.uid}/${name}`, id);
@@ -1182,23 +1236,18 @@ function startAlarmChecker(){
 
 function getAlarmableItemsForDate(ds) {
     const items = [];
-    
-    // 수정됨: 전체 목록(localEvents)이 아닌 해당 날짜(ds)에 배정된 '일정'만 불러와서 알람 검사
     getEventsForDate(ds).forEach(e => {
         if(!e.alarms || e.alarms.length === 0) return;
         const isDone = (e.repeatType && e.repeatType !== 'none') ? (e.completedDates && e.completedDates.includes(ds)) : e.done;
         if(isDone) return;
         items.push({ id: e.id || e._lid, title: e.title, time: e.startTime || e.time || '09:00', alarms: e.alarms, date: ds });
     });
-    
-    // 수정됨: 전체 목록(localTasks)이 아닌 해당 날짜(ds)에 배정된 '업무'만 불러와서 알람 검사
     getTasksForDate(ds).forEach(t => {
         if(!t.alarms || t.alarms.length === 0) return;
         const isDone = t.type === 'adhoc' ? (t.completedDates && t.completedDates.length > 0) : (t.completedDates && t.completedDates.includes(ds));
         if(isDone) return;
         items.push({ id: t.id || t._lid, title: t.title, time: t.time || '09:00', alarms: t.alarms, date: ds });
     });
-    
     return items;
 }
 
@@ -1257,21 +1306,17 @@ function updateAlarmPanel(){
   const upcoming = [];
   const todayStr = fmtDate(now);
 
-  // 1. 오늘 날짜의 일정/업무
   getAlarmableItemsForDate(todayStr).forEach(item => {
     const dt = new Date(todayStr + 'T' + item.time);
     item.alarms.forEach(off => {
-      if (off === 1440) return; // '하루 전' 알람은 어제 울렸어야 함
+      if (off === 1440) return; 
       const key = item.id + '_' + off + '_' + todayStr;
       if (dismissed.includes(key)) return;
-
       const at = new Date(dt - off * 60000);
-      // 알람 울릴 시간이 현재 시간보다 미래일 때만 목록에 추가
       if (at > now) upcoming.push({item, at, off, ds: todayStr});
     });
   });
 
-  // 2. 내일 날짜의 일정 중 '하루 전' 알람이 '오늘' 울리는 경우
   const tomorrow = new Date(now);
   tomorrow.setDate(tomorrow.getDate() + 1);
   const tomorrowStr = fmtDate(tomorrow);
@@ -1281,8 +1326,7 @@ function updateAlarmPanel(){
       if (off === 1440) {
         const key = item.id + '_1440_' + tomorrowStr;
         if (dismissed.includes(key)) return;
-
-        const at = new Date(dt - 1440 * 60000); // 24시간 전 (오늘)
+        const at = new Date(dt - 1440 * 60000); 
         if (at > now && at.getDate() === now.getDate()) {
           upcoming.push({item, at, off, ds: tomorrowStr});
         }
@@ -1380,7 +1424,6 @@ function getTasksForDate(ds){
   });
 }
 
-// 📌 프로젝트 추출
 function getProjectsForDate(ds) {
     return localProjects.filter(p => {
         if (!p.startDate) return false;
@@ -1390,7 +1433,6 @@ function getProjectsForDate(ds) {
     });
 }
 
-// 📌 프로젝트 세부 업무 추출
 function getProjectSubtasksForDate(ds) {
     let tasks = [];
     localProjects.forEach(p => {
@@ -2073,7 +2115,7 @@ function saveSubtask(){
   const data = {title:t,assignee:$('stAssignee').value,start:$('stStart').value,due:$('stDue').value,priority:$('stPriority').value,done:curStEditIdx>=0?tasks[curStEditIdx].done:false};
   if(curStEditIdx >= 0) tasks[curStEditIdx] = data; else tasks.push(data);
   setSubtasks(curProjId,tasks);$('addStForm').style.display='none';renderSubtasks();
-  renderCal(); renderWeekView(); renderDayEvts(); // 신규: 저장 즉시 캘린더 동기화
+  renderCal(); renderWeekView(); renderDayEvts(); 
   showToast(curStEditIdx>=0?'세부 업무 수정 ✓':'세부 업무 추가 ✓');
 }
 function toggleSt(i){
@@ -2133,12 +2175,19 @@ function renderProjNotes(){
   $('projNoteList').innerHTML=!n.length?'<div class="empty"><div class="ei">📝</div><p>메모를 추가해 보세요</p></div>':
     n.map((nt,i)=>`<div class="note-item"><div style="display:flex;justify-content:space-between"><strong>${nt.title||'메모'}</strong>
       <button class="btn btn-ic btn-sm" style="background:transparent;border:none;color:var(--red)" onclick="deleteProjNote(${i})">🗑</button></div>
-      <div style="margin-top:6px">${nt.content.replace(/\n/g,'<br>')}</div>
-      <div style="font-size:11px;color:var(--muted);margin-top:6px">${nt.createdAt}</div></div>`).join('');
+      <div style="margin-top:8px" class="rich-text">${formatContent(nt.content)}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:8px">${nt.createdAt}</div></div>`).join('');
 }
-function openAddProjNote(){['pnTitle','pnContent'].forEach(id=>$(id).value='');$('addPnForm').style.display='block'}
+function openAddProjNote(){
+  ['pnTitle'].forEach(id=>$(id).value='');
+  quillProjNote.setContents([]);
+  $('addPnForm').style.display='block';
+}
 function saveProjNote(){
-  const c=$('pnContent').value.trim();if(!c){showToast('내용을 입력해 주세요');return}
+  const plain = quillProjNote.getText().trim();
+  const c = quillProjNote.root.innerHTML;
+  if(!plain && c === '<p><br></p>'){showToast('내용을 입력해 주세요');return}
+  
   const n=getProjNotes(curProjId);
   n.unshift({title:$('pnTitle').value||'메모',content:c,createdAt:new Date().toLocaleDateString('ko-KR')});
   setProjNotes(curProjId,n);$('addPnForm').style.display='none';renderProjNotes();showToast('메모 저장 ✓');
@@ -2154,9 +2203,12 @@ function renderLinkedNotes(){
     <div style="font-size:13px;font-weight:600">이 프로젝트에 연결된 노트 (${notes.length}개)</div>
     <button class="btn btn-p btn-sm" onclick="openNoteModalWithLink('project','${pid}')">+ 노트 추가</button></div>`;
   if(!notes.length) html+='<div class="empty"><div class="ei">🔗</div><p>연결된 노트가 없습니다</p></div>';
-  else html+=notes.map(n=>`<div class="linked-note" onclick="openNoteDetail('${n.id||n._lid}')">
-    <div style="flex:1"><div class="ln-title">${n.title||'(제목 없음)'}</div><div class="ln-preview">${(n.content||'').substring(0,80)}</div></div>
-    <span style="font-size:11px;color:var(--muted);flex-shrink:0">${n.createdAt||''}</span></div>`).join('');
+  else html+=notes.map(n=>{
+    const rawText = (n.content||'').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').trim();
+    return `<div class="linked-note" onclick="openNoteDetail('${n.id||n._lid}')">
+    <div style="flex:1"><div class="ln-title">${n.title||'(제목 없음)'}</div><div class="ln-preview">${rawText.substring(0,80)}</div></div>
+    <span style="font-size:11px;color:var(--muted);flex-shrink:0">${n.createdAt||''}</span></div>`
+  }).join('');
   el.innerHTML=html;
 }
 
@@ -2484,9 +2536,12 @@ function renderLinkedTaskNotes(){
   const notes=localNotes.filter(n=>n.linkType==='task'&&n.linkTargetId===curTaskId);
   $('tdNoteCount').textContent=`이 업무에 연결된 노트 (${notes.length}개)`;
   $('tdLinkedNotes').innerHTML=!notes.length?'<div class="empty"><div class="ei">🔗</div><p>연결된 노트가 없습니다</p></div>':
-    notes.map(n=>`<div class="linked-note" onclick="openNoteDetail('${n.id||n._lid}')">
-      <div style="flex:1"><div class="ln-title">${n.title||'(제목 없음)'}</div><div class="ln-preview">${(n.content||'').substring(0,80)}</div></div>
-      <span style="font-size:11px;color:var(--muted);flex-shrink:0">${n.createdAt||''}</span></div>`).join('');
+    notes.map(n=>{
+      const rawText = (n.content||'').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').trim();
+      return `<div class="linked-note" onclick="openNoteDetail('${n.id||n._lid}')">
+      <div style="flex:1"><div class="ln-title">${n.title||'(제목 없음)'}</div><div class="ln-preview">${rawText.substring(0,80)}</div></div>
+      <span style="font-size:11px;color:var(--muted);flex-shrink:0">${n.createdAt||''}</span></div>`
+    }).join('');
 }
 function openNoteFromTask(){ closeModal('moTaskDetail'); openNoteModal(null,curTaskId); }
 function deleteTaskFromDetail(){ if(!confirm('이 업무를 삭제할까요?'))return; deleteTask(curTaskId); closeModal('moTaskDetail'); showToast('업무가 삭제되었습니다'); }
@@ -2506,22 +2561,32 @@ function renderNotesPage(){
     let badge='';
     if(n.linkType==='project'&&n.linkTargetId) badge=`<span class="link-badge lb-proj" onclick="event.stopPropagation();openProjDetail('${n.linkTargetId}')">📁 ${getProjName(n.linkTargetId)||'프로젝트'}</span>`;
     else if(n.linkType==='task'&&n.linkTargetId) badge=`<span class="link-badge lb-task" onclick="event.stopPropagation();openTaskDetail('${n.linkTargetId}')">✅ ${getTaskName(n.linkTargetId)||'업무'}</span>`;
+    
+    // HTML 태그 제거 후 미리보기 제공
+    const rawText = (n.content||'').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').trim();
+    
     return`<div class="note-card nc-${n.color||'yellow'}" onclick="openNoteDetail('${nid}')">
       <div class="nc-body"><div class="nc-title">${n.title||'(제목 없음)'}</div>
-      <div class="nc-preview">${(n.content||'').replace(/</g,'&lt;')}</div></div>
+      <div class="nc-preview">${rawText}</div></div>
       <div class="nc-foot"><span>${n.createdAt||''}</span>${badge}</div></div>`;
   }).join('');
 }
+
 function setNoteFilter(f,btn){ noteFilter=f; document.querySelectorAll('.f-btn').forEach(b=>b.classList.remove('active')); if(btn)btn.classList.add('active'); renderNotesPage(); }
+
 function openNoteModal(prefProj,prefTask){
-  $('noteMoTitle').textContent='새 노트'; ['noteTitle','noteContent'].forEach(id=>$(id).value='');
+  $('noteMoTitle').textContent='새 노트'; 
+  $('noteTitle').value='';
+  quillNote.setContents([]); // 에디터 초기화
   $('noteColor').value='yellow'; $('noteEditId').value=''; $('noteDelBtn').style.display='none';
   if(prefProj){$('noteLinkType').value='project';onNoteLinkChange('project');$('noteLinkTarget').value=prefProj}
   else if(prefTask){$('noteLinkType').value='task';onNoteLinkChange('task');$('noteLinkTarget').value=prefTask}
   else{$('noteLinkType').value='none';onNoteLinkChange('none')}
   openModal('moNote');
 }
+
 function openNoteModalWithLink(type,tid){ closeModal('moProjDetail'); openNoteModal(type==='project'?tid:null,type==='task'?tid:null); }
+
 function onNoteLinkChange(val){
   const grp=$('noteLinkGroup'),sel=$('noteLinkTarget'),lbl=$('noteLinkLabel');
   if(val==='none'){grp.style.display='none';return}
@@ -2529,11 +2594,16 @@ function onNoteLinkChange(val){
   if(val==='project'){lbl.textContent='연결할 프로젝트';sel.innerHTML=!localProjects.length?'<option value="">프로젝트 없음</option>':localProjects.map(p=>`<option value="${p.id||p._lid}">${p.name}</option>`).join('')}
   else{lbl.textContent='연결할 업무';sel.innerHTML=!localTasks.length?'<option value="">업무 없음</option>':localTasks.map(t=>`<option value="${t.id||t._lid}">${t.title}</option>`).join('')}
 }
+
 async function saveNote(){
-  const content=$('noteContent').value.trim(); if(!content){showToast('내용을 입력해 주세요');return}
+  const plain = quillNote.getText().trim();
+  const content = quillNote.root.innerHTML;
+  if(!plain && content === '<p><br></p>'){showToast('내용을 입력해 주세요');return}
+  
   const editId=$('noteEditId').value; const linkType=$('noteLinkType').value;
   const noteData={title:$('noteTitle').value.trim()||'(제목 없음)',content,color:$('noteColor').value,linkType,
     linkTargetId:linkType!=='none'?$('noteLinkTarget').value:'',createdAt:new Date().toLocaleDateString('ko-KR'), author: currentUser ? currentUser.email : ''};
+  
   if(editId){
     if(fbReady){await window._fb.updateDoc(getDoc('notes', editId),noteData)}
     else{const idx=localNotes.findIndex(n=>(n.id||n._lid)===editId);if(idx>=0)localNotes[idx]={...localNotes[idx],...noteData};saveLocal();renderNotesPage()}
@@ -2545,6 +2615,7 @@ async function saveNote(){
   }
   closeModal('moNote');
 }
+
 async function deleteNote(){
   const editId=$('noteEditId').value; if(!editId)return;
   if(!confirm('이 노트를 삭제할까요?'))return;
@@ -2552,19 +2623,25 @@ async function deleteNote(){
   else{localNotes=localNotes.filter(n=>(n.id||n._lid)!==editId);saveLocal();renderNotesPage()}
   closeModal('moNote'); showToast('노트가 삭제되었습니다');
 }
+
 function openNoteDetail(nid){
   const n=localNotes.find(x=>(x.id||x._lid)===nid); if(!n)return;
-  curNoteId=nid; $('ndTitle').textContent=n.title||'(제목 없음)'; $('ndContent').textContent=n.content||'';
+  curNoteId=nid; 
+  $('ndTitle').textContent=n.title||'(제목 없음)'; 
+  $('ndContent').innerHTML=formatContent(n.content);
+  
   let links='';
   if(n.linkType==='project'&&n.linkTargetId) links=`<span class="link-badge lb-proj" onclick="closeModal('moNoteDetail');openProjDetail('${n.linkTargetId}')">📁 ${getProjName(n.linkTargetId)||'프로젝트'} 열기</span>`;
   else if(n.linkType==='task'&&n.linkTargetId) links=`<span class="link-badge lb-task" onclick="closeModal('moNoteDetail');openTaskDetail('${n.linkTargetId}')">✅ ${getTaskName(n.linkTargetId)||'업무'} 열기</span>`;
   $('ndLinks').innerHTML=links; $('ndMeta').textContent=`작성일: ${n.createdAt||''} · 색상: ${COLOR_LBL[n.color]||''}`;
   openModal('moNoteDetail');
 }
+
 function editNoteFromDetail(){
   const n=localNotes.find(x=>(x.id||x._lid)===curNoteId); if(!n)return;
   closeModal('moNoteDetail'); $('noteMoTitle').textContent='노트 수정';
-  $('noteTitle').value=n.title||''; $('noteContent').value=n.content||'';
+  $('noteTitle').value=n.title||''; 
+  quillNote.root.innerHTML = formatContent(n.content);
   $('noteColor').value=n.color||'yellow'; $('noteEditId').value=curNoteId; $('noteDelBtn').style.display='inline-flex';
   $('noteLinkType').value=n.linkType||'none'; onNoteLinkChange(n.linkType||'none');
   if(n.linkType&&n.linkType!=='none') $('noteLinkTarget').value=n.linkTargetId||'';
