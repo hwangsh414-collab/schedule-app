@@ -332,8 +332,16 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
 .hbg{display:none;background:none;border:none;cursor:pointer;padding:4px;color:var(--text)}
 
 /* Scroll UI tweaks */
-#dayEvtList { max-height: 400px; overflow-y: auto; }
-#overdueList { max-height: 300px; overflow-y: auto; }
+.sp-tabs { display:flex; border-bottom:1px solid var(--border); background:var(--surface2); }
+.sp-tab { flex:1; text-align:center; padding:8px 0; font-size:11px; font-weight:600; color:var(--muted); cursor:pointer; border-bottom:2px solid transparent; transition:all 0.15s; }
+.sp-tab:hover { color:var(--text); }
+.sp-tab.active { color:var(--accent); border-bottom-color:var(--accent); background:var(--surface); }
+.sp-tc { display:none; padding-top: 12px; }
+.sp-tc.active { display:block; }
+.overdue-tabs { background: #fee2e2; border-bottom-color: rgba(220, 38, 38, 0.2); }
+.overdue-tabs .sp-tab { color: #b91c1c; opacity: 0.6; }
+.overdue-tabs .sp-tab:hover { opacity: 1; }
+.overdue-tabs .sp-tab.active { color: var(--red); border-bottom-color: var(--red); background: var(--red-l); opacity: 1; }
 
 /* ── Rich Text & Quill Overrides ── */
 .ql-toolbar.ql-snow { border-color: var(--border) !important; border-top-left-radius: var(--rs); border-top-right-radius: var(--rs); background: var(--surface2); padding: 8px !important; font-family: inherit; }
@@ -472,21 +480,42 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
         </div>
         <div>
           <div class="side-panel">
-            <div class="sp-head">
-              <div class="sp-title" id="selDateTitle">오늘 일정</div>
+            <div class="sp-head" style="flex-direction:column; padding:0; align-items:stretch;">
+              <div style="padding:14px 18px; border-bottom:1px solid var(--border);">
+                <div class="sp-title" id="selDateTitle">오늘 일정</div>
+              </div>
+              <div class="sp-tabs" id="dayTabsWrap">
+                <div class="sp-tab active" data-tab="all" onclick="switchSpTab('day', 'all')">전체</div>
+                <div class="sp-tab" data-tab="task" onclick="switchSpTab('day', 'task')">업무</div>
+                <div class="sp-tab" data-tab="proj" onclick="switchSpTab('day', 'proj')">프로젝트</div>
+                <div class="sp-tab" data-tab="evt" onclick="switchSpTab('day', 'evt')">일정</div>
+              </div>
             </div>
-            <div class="sp-body" style="padding-bottom:10px;">
-              <div class="evt-list" id="dayEvtList"></div>
+            <div class="sp-body" style="padding:0 18px 10px; max-height:400px; overflow-y:auto;">
+              <div class="sp-tc active" data-group="day" data-tab="all"><div class="evt-list" id="dayEvtList-all"></div></div>
+              <div class="sp-tc" data-group="day" data-tab="task"><div class="evt-list" id="dayEvtList-task"></div></div>
+              <div class="sp-tc" data-group="day" data-tab="proj"><div class="evt-list" id="dayEvtList-proj"></div></div>
+              <div class="sp-tc" data-group="day" data-tab="evt"><div class="evt-list" id="dayEvtList-evt"></div></div>
             </div>
             
             <!-- 기한 지난 미완료 항목 (지연 항목) 영역 -->
-            <div class="sp-head" style="border-top:1px solid var(--border); background:var(--red-l);">
-              <div class="sp-title" style="color:var(--red); font-size:13px;">⚠️ 기한 지난 미완료 항목</div>
+            <div class="sp-head" style="border-top:1px solid var(--border); background:var(--red-l); flex-direction:column; padding:0; align-items:stretch;">
+              <div style="padding:14px 18px; border-bottom:1px solid rgba(220,38,38,0.2);">
+                <div class="sp-title" style="color:var(--red); font-size:13px;">⚠️ 기한 지난 미완료 항목</div>
+              </div>
+              <div class="sp-tabs overdue-tabs" id="overdueTabsWrap">
+                <div class="sp-tab active" data-tab="all" onclick="switchSpTab('overdue', 'all')">전체</div>
+                <div class="sp-tab" data-tab="task" onclick="switchSpTab('overdue', 'task')">업무</div>
+                <div class="sp-tab" data-tab="proj" onclick="switchSpTab('overdue', 'proj')">프로젝트</div>
+                <div class="sp-tab" data-tab="evt" onclick="switchSpTab('overdue', 'evt')">일정</div>
+              </div>
             </div>
-            <div class="sp-body" style="background:var(--red-l);">
-              <div class="evt-list" id="overdueList"></div>
+            <div class="sp-body" style="background:var(--red-l); padding:0 18px 10px; max-height:300px; overflow-y:auto;">
+              <div class="sp-tc active" data-group="overdue" data-tab="all"><div class="evt-list" id="overdueList-all"></div></div>
+              <div class="sp-tc" data-group="overdue" data-tab="task"><div class="evt-list" id="overdueList-task"></div></div>
+              <div class="sp-tc" data-group="overdue" data-tab="proj"><div class="evt-list" id="overdueList-proj"></div></div>
+              <div class="sp-tc" data-group="overdue" data-tab="evt"><div class="evt-list" id="overdueList-evt"></div></div>
             </div>
-            
           </div>
         </div>
       </div>
@@ -1462,6 +1491,18 @@ window.toggleSubtaskDone = function(pid, idx) {
     }
 };
 
+window.switchSpTab = function(group, tab) {
+  const wrap = $(group === 'day' ? 'dayTabsWrap' : 'overdueTabsWrap');
+  if(wrap) {
+    wrap.querySelectorAll('.sp-tab').forEach(el => {
+      el.classList.toggle('active', el.dataset.tab === tab);
+    });
+  }
+  document.querySelectorAll(`.sp-tc[data-group="${group}"]`).forEach(el => {
+    el.classList.toggle('active', el.dataset.tab === tab);
+  });
+};
+
 function setView(v){
   calView=v;
   $('vt-month').classList.toggle('active',v==='month');
@@ -1642,9 +1683,10 @@ function renderOverdueList() {
   const today = new Date();
   today.setHours(0,0,0,0);
   const todayStr = fmtDate(today);
-  const el = $('overdueList');
-  if (!el) return;
-  let html = '';
+  
+  let htmlEvt = '';
+  let htmlTask = '';
+  let htmlProj = '';
 
   const renderOverdueItem = (item, kind, dateStr, extraOnClick, extraOnToggle, extraHtml) => {
     const id = item.id || item._lid;
@@ -1669,7 +1711,7 @@ function renderOverdueList() {
   localEvents.forEach(e => {
     const isRepeating = e.repeatType && e.repeatType !== 'none';
     if (!isRepeating) {
-      if (e.date < todayStr && !e.done) html += renderOverdueItem(e, 'event', e.date);
+      if (e.date < todayStr && !e.done) htmlEvt += renderOverdueItem(e, 'event', e.date);
     } else {
       if (e.date) {
         let startD = new Date(e.date + 'T00:00:00');
@@ -1682,7 +1724,7 @@ function renderOverdueList() {
           else if (e.repeatType === 'monthly' && e.repeatDates && e.repeatDates.includes(dom)) matches = true;
           if (matches) {
             const isDone = e.completedDates && e.completedDates.includes(ds);
-            if (!isDone) html += renderOverdueItem(e, 'event', ds);
+            if (!isDone) htmlEvt += renderOverdueItem(e, 'event', ds);
           }
         }
       }
@@ -1695,7 +1737,7 @@ function renderOverdueList() {
     if (!isRepeating) {
       if (t.type === 'adhoc' && sd && sd < todayStr) {
          const isDone = t.completedDates && t.completedDates.length > 0;
-         if (!isDone) html += renderOverdueItem(t, 'task', sd);
+         if (!isDone) htmlTask += renderOverdueItem(t, 'task', sd);
       }
     } else {
       if (sd) {
@@ -1709,7 +1751,7 @@ function renderOverdueList() {
           else if (t.type === 'recurring-monthly' && t.repeatDates && t.repeatDates.includes(dom)) matches = true;
           if (matches) {
             const isDone = t.completedDates && t.completedDates.includes(ds);
-            if (!isDone) html += renderOverdueItem(t, 'task', ds);
+            if (!isDone) htmlTask += renderOverdueItem(t, 'task', ds);
           }
         }
       }
@@ -1722,12 +1764,17 @@ function renderOverdueList() {
       subtasks.forEach((st, idx) => {
           if (st.due && st.due < todayStr && !st.done) {
               const extraHtml = `<div style="font-size:11px;color:var(--red);margin-top:4px">📅 마감일: ${st.due} · 📁 ${p.name}</div>`;
-              html += renderOverdueItem({title: `↳ ${st.title}`}, 'task', st.due, `openProjDetail('${pid}')`, `window.toggleSubtaskDone('${pid}', ${idx})`, extraHtml);
+              htmlProj += renderOverdueItem({title: `↳ ${st.title}`}, 'task', st.due, `openProjDetail('${pid}')`, `window.toggleSubtaskDone('${pid}', ${idx})`, extraHtml);
           }
       });
   });
 
-  el.innerHTML = html || '<div class="empty" style="padding:16px 0;"><p style="font-size:12px;color:var(--red);opacity:0.7">지연된 미완료 항목이 없습니다 🎉</p></div>';
+  const getEmpty = () => `<div class="empty" style="padding:16px 0;"><p style="font-size:12px;color:var(--red);opacity:0.7">지연된 항목이 없습니다 🎉</p></div>`;
+
+  $('overdueList-all').innerHTML = (htmlEvt + htmlTask + htmlProj) || getEmpty();
+  $('overdueList-evt').innerHTML = htmlEvt || getEmpty();
+  $('overdueList-task').innerHTML = htmlTask || getEmpty();
+  $('overdueList-proj').innerHTML = htmlProj || getEmpty();
 }
 
 // ── 날짜 선택 & 사이드 패널 ──
@@ -1741,22 +1788,35 @@ function selectDate(ds){
 }
 
 function renderDayEvts(){
-  const ds=fmtDate(selDate), el=$('dayEvtList');
+  const ds=fmtDate(selDate);
   const dayProjects = getProjectsForDate(ds);
   const daySubtasks = getProjectSubtasksForDate(ds);
   const evts=getEventsForDate(ds);
   const dayTasks=getTasksForDate(ds);
   const tl={meeting:'📋 회의',task:'✅ 업무',deadline:'🔴 마감',reminder:'🔔 알림'};
 
-  let html='';
+  let htmlProj='';
+  let htmlEvt='';
+  let htmlTask='';
   
   dayProjects.forEach(p => {
      const c = PROJ_COLORS[p.color || 'blue'];
-     html += `<div class="evt-item project" style="display:flex; align-items:flex-start; gap:10px; cursor:pointer; border-color:${c.text}; background:${c.bg};" onclick="openProjDetail('${p.id||p._lid}')">
+     htmlProj += `<div class="evt-item project" style="display:flex; align-items:flex-start; gap:10px; cursor:pointer; border-color:${c.text}; background:${c.bg};" onclick="openProjDetail('${p.id||p._lid}')">
         <div class="t-check" style="opacity:0; pointer-events:none; cursor:default;"></div>
         <div style="flex:1">
            <div style="font-size:13px;font-weight:700;color:${c.text};">📁 ${p.name}</div>
            <div style="font-size:11px;color:var(--muted);margin-top:4px">프로젝트 일정 · ${p.startDate} ~ ${p.endDate||''}</div>
+        </div>
+     </div>`;
+  });
+
+  daySubtasks.forEach(st => {
+     const c = PROJ_COLORS[st.projectColor || 'blue'];
+     htmlProj += `<div class="evt-item subtask" style="display:flex; align-items:flex-start; gap:10px; cursor:pointer; border-color:${c.text};" onclick="openProjDetail('${st.projectId}')">
+        <div class="t-check${st.done?' done':''}" style="margin-top:2px;" onclick="event.stopPropagation(); toggleSubtaskDone('${st.projectId}', ${st.stIdx})"></div>
+        <div style="flex:1">
+           <div style="font-size:13px;font-weight:500;${st.done?'text-decoration:line-through;color:var(--muted)':''}">↳ ${st.title}</div>
+           <div style="font-size:11px;color:var(--muted);margin-top:4px">📁 ${st.projectName} 하위 업무${st.assignee?' · 👤 '+st.assignee:''}</div>
         </div>
      </div>`;
   });
@@ -1770,7 +1830,7 @@ function renderDayEvts(){
     let timeStr = e.startTime || e.time || '';
     if (timeStr && e.endTime) timeStr += ' ~ ' + e.endTime;
     
-    html+=`<div class="evt-item ${e.type}" style="display:flex; align-items:flex-start; gap:10px; cursor:pointer;" onclick="openEventDetail('${eid}', '${ds}')">
+    htmlEvt+=`<div class="evt-item ${e.type}" style="display:flex; align-items:flex-start; gap:10px; cursor:pointer;" onclick="openEventDetail('${eid}', '${ds}')">
       <div class="t-check${isDone?' done':''}" style="margin-top:2px;" onclick="event.stopPropagation(); toggleEventDone('${eid}', '${ds}')"></div>
       <div style="flex:1">
         <div style="font-size:13px;font-weight:500;display:flex;align-items:center;gap:6px;flex-wrap:wrap;${isDone?'text-decoration:line-through;color:var(--muted)':''}">${repIcon}${e.title}${ddBadge}${e.alarms&&e.alarms.length?'<span title="알람 설정됨" style="font-size:11px">🔔</span>':''}</div>
@@ -1786,7 +1846,7 @@ function renderDayEvts(){
     const isDone = isAdhoc ? (t.completedDates && t.completedDates.length > 0) : (t.completedDates && t.completedDates.includes(ds));
     const cls = isAdhoc ? 'adhoc-task' : 'recurring-task';
 
-    html+=`<div class="evt-item ${cls}" style="display:flex; align-items:flex-start; gap:10px; cursor:pointer;" onclick="openTaskDetail('${tid}', '${ds}')">
+    htmlTask+=`<div class="evt-item ${cls}" style="display:flex; align-items:flex-start; gap:10px; cursor:pointer;" onclick="openTaskDetail('${tid}', '${ds}')">
       <div class="t-check${isDone?' done':''}" style="margin-top:2px;" onclick="event.stopPropagation(); toggleTaskDone('${tid}', '${ds}')"></div>
       <div style="flex:1">
         <div style="font-size:13px;font-weight:500;${isAdhoc?'color:#EA580C;':'color:var(--purple);'}${isDone?'text-decoration:line-through;opacity:0.5;':''}">${isAdhoc ? '⚡ ' : '🔁 '}${t.title}${t.alarms&&t.alarms.length?'<span title="알람 설정됨" style="font-size:11px; margin-left:4px;">🔔</span>':''}</div>
@@ -1795,18 +1855,12 @@ function renderDayEvts(){
     </div>`;
   });
 
-  daySubtasks.forEach(st => {
-     const c = PROJ_COLORS[st.projectColor || 'blue'];
-     html += `<div class="evt-item subtask" style="display:flex; align-items:flex-start; gap:10px; cursor:pointer; border-color:${c.text};" onclick="openProjDetail('${st.projectId}')">
-        <div class="t-check${st.done?' done':''}" style="margin-top:2px;" onclick="event.stopPropagation(); toggleSubtaskDone('${st.projectId}', ${st.stIdx})"></div>
-        <div style="flex:1">
-           <div style="font-size:13px;font-weight:500;${st.done?'text-decoration:line-through;color:var(--muted)':''}">↳ ${st.title}</div>
-           <div style="font-size:11px;color:var(--muted);margin-top:4px">📁 ${st.projectName} 하위 업무${st.assignee?' · 👤 '+st.assignee:''}</div>
-        </div>
-     </div>`;
-  });
+  const getEmpty = (icon, msg) => `<div class="empty" style="padding:24px 0;"><div class="ei" style="font-size:24px;margin-bottom:8px;">${icon}</div><p style="font-size:12px;">${msg}</p></div>`;
 
-  el.innerHTML = html || '<div class="empty"><div class="ei">📅</div><p>이 날의 일정이 없습니다</p></div>';
+  $('dayEvtList-all').innerHTML = (htmlProj + htmlTask + htmlEvt) || getEmpty('📅', '이 날의 항목이 없습니다');
+  $('dayEvtList-task').innerHTML = htmlTask || getEmpty('✅', '이 날의 업무가 없습니다');
+  $('dayEvtList-proj').innerHTML = htmlProj || getEmpty('📁', '이 날의 프로젝트 항목이 없습니다');
+  $('dayEvtList-evt').innerHTML = htmlEvt || getEmpty('📅', '이 날의 일정이 없습니다');
   
   renderOverdueList();
 }
