@@ -418,7 +418,6 @@ body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text
   <!-- 계정 정보 및 로그아웃 위치 -->
   <div style="margin-top:auto;padding:16px;border-top:1px solid var(--border)">
     <div id="userInfoDisplay" style="font-size:12px; font-weight:700; color:var(--accent); margin-bottom:10px; text-align:center; word-break:break-all;"></div>
-    <button class="btn btn-p btn-sm" id="migrateBtn" style="width:100%; justify-content:center; margin-bottom:6px; display:none;" onclick="migrateOldData()">⬇️ 이전 공용데이터 가져오기</button>
     <button class="btn btn-s btn-sm" id="alarmToggleBtn" style="width:100%; justify-content:center; margin-bottom:6px;" onclick="toggleAppAlarm()">🔔 알림 켜짐 (끄기)</button>
     <button class="btn btn-s btn-sm" style="width:100%; justify-content:center; margin-bottom:12px;" onclick="handleLogout()">로그아웃</button>
     <div id="alarmSidebarStatus" style="font-size:11px;color:var(--muted);text-align:center"></div>
@@ -1096,32 +1095,6 @@ function handleLogout() {
   window._fbAuth.signOut(window._auth);
 }
 
-async function migrateOldData() {
-  if(!currentUser || !fbReady) return;
-  if(!confirm('가입 전 함께 사용하던 이전 일정을 내 계정으로 모두 복사해올까요?\n(중복 생성 방지를 위해 처음 1회만 누르시는 것을 권장합니다.)')) return;
-
-  try {
-    showToast('데이터를 가져오는 중입니다. 창을 닫지 마세요...');
-    const { collection, getDocs, setDoc, doc } = window._fb;
-    const collectionsToMigrate = ['events', 'projects', 'tasks', 'notes'];
-    let totalCount = 0;
-
-    for (const colName of collectionsToMigrate) {
-      const oldSnapshot = await getDocs(collection(window._db, colName));
-      for (const oldDoc of oldSnapshot.docs) {
-        const data = oldDoc.data();
-        await setDoc(doc(window._db, `users/${currentUser.uid}/${colName}`, oldDoc.id), data);
-        totalCount++;
-      }
-    }
-    showToast(`총 ${totalCount}개의 이전 데이터를 성공적으로 복사했습니다! ✓`);
-    $('migrateBtn').style.display = 'none';
-  } catch(err) {
-    console.error(err);
-    showToast('데이터 가져오기 실패: ' + err.message);
-  }
-}
-
 // ── Firebase Init ─────────────────────────────────────────────
 document.addEventListener('firebaseReady',()=>{
   fbReady=true; $('setupNotice').style.display='none';
@@ -1131,14 +1104,12 @@ document.addEventListener('firebaseReady',()=>{
       currentUser = user;
       $('authOverlay').style.display = 'none';
       $('userInfoDisplay').textContent = user.email;
-      if($('migrateBtn')) $('migrateBtn').style.display = 'flex'; 
       loadLocal();
       initDataListeners();
     } else {
       currentUser = null;
       $('authOverlay').style.display = 'flex';
       $('userInfoDisplay').textContent = '';
-      if($('migrateBtn')) $('migrateBtn').style.display = 'none'; 
       clearDataListeners();
       
       localEvents=[]; localProjects=[]; localTasks=[]; localNotes=[];
